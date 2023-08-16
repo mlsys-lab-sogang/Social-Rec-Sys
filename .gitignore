@@ -64,3 +64,6 @@ _*.py
 
 # another raw dataset files (.mat -> .csv)
 *.csv
+
+# ignoring for deprecated(un-used) files.
+dep/
