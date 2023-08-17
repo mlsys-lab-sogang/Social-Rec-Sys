@@ -22,6 +22,7 @@ DATASET = 'ciao'
 
 data_path = os.getcwd() + '/dataset/' + DATASET
 
+
 def mat_to_csv(data_path:str):
     """
     Convert .mat file into .csv file for using pandas.
@@ -47,11 +48,13 @@ def mat_to_csv(data_path:str):
     rating_df = pd.DataFrame(rating_file, columns=['user_id', 'product_id', 'category_id', 'rating', 'helpfulness'])
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
 
-    # drop unused columns (TODO: Maybe used later)
+    ###### drop unused columns (TODO: Maybe used later)
     rating_df.drop(['category_id', 'helpfulness'], axis=1, inplace=True)
+    ######
 
     rating_df.to_csv(data_path + '/rating.csv', index=False)
     trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
+
 
 def generate_user_degree_table(data_path:str):
     """
@@ -74,7 +77,8 @@ def generate_user_degree_table(data_path:str):
 
     degree_df.to_csv(data_path + '/social_degree.csv', index=False)
 
-def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5):
+
+def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5) -> dict:
     """
     Generate random walk sequence from social graph(trustnetwork).
     
@@ -88,45 +92,7 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
 
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
 
-    # sample_dict = {}
-    # memory = []
-    # anchor = 6926
-    # sample_dict[anchor] = [anchor]
-    # for _ in range(walk_length):
-    #     print(sample_dict)
-    #     if sample_dict[anchor][-1] == anchor:
-    #         selected = find_next_social_node(social_graph, previous_node=None, current_node=anchor, RETURN_PARAMS=0.0)
-    #         memory.append(selected)
-    #         sample_dict[anchor].append(selected)
-    #         print('\n\n')
-    #         print(f"OOOOOKKKKKKKKKKK {sample_dict}")
-    #         print(memory)
-    #         print('\n\n')
-            
-    #     # elif (sample_dict[anchor][-1] == memory[0]) or (sample_dict[anchor][-1] == 0):
-    #     #     print('\n')
-    #     #     print('PAAAAAAASSSSSSSSSSSSSSSSSSSSs')
-    #     #     # sample_dict[anchor].append(0)
-    #     #     continue
-
-    #     else:
-    #         print('\n')
-    #         print('GGGGEEEEEEEEEEETTTTTTTTTT')
-    #         selected = find_next_social_node(social_graph, previous_node=anchor, current_node=memory[0], RETURN_PARAMS=0.0)
-    #         sample_dict[anchor].append(selected)
-    # del sample_dict[anchor][0]
-    # # print(sample_dict)
-
-    # if len(sample_dict[anchor]) != walk_length:
-    #     len_flag = len(sample_dict[anchor])
-    #     for _ in range(len_flag, walk_length):
-    #         sample_dict[anchor].append(0)
-    # print(sample_dict)
-
-    # quit()
-
     path_dict = {}
-    memory = []
 
     # select target(anchor) nodes randomly.
     anchor_nodes = np.random.choice(social_graph.nodes(), size=num_nodes)
@@ -134,89 +100,65 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
     # At first, there is no previous node, so set it to None.
     for nodes in anchor_nodes:
         path_dict[nodes] = [nodes]
-        for _ in range(walk_length):
-            # 바로 이웃된 노드 추가
+        for _ in range(walk_length - 1):
+            # Move to one of connected node randomly.
             if path_dict[nodes][-1] == nodes:
                 next_node = find_next_social_node(graph=social_graph, previous_node=None, current_node=nodes, RETURN_PARAMS=0.0)
                 path_dict[nodes].append(next_node)
 
-                memory.append(next_node)
+            # If selected node was "edge node", there is no movable nodes, so pad it with 0(zero-padding).
+            if path_dict[nodes][-1] == 0:
+                path_dict[nodes].append(0)
+
+            # Move to one of connected node randomly.
             else:
                 next_node = find_next_social_node(graph=social_graph, previous_node=path_dict[nodes][-2], current_node=path_dict[nodes][-1], RETURN_PARAMS=0.0)
                 path_dict[nodes].append(next_node)
         
-        # pop 1st element of list (since it is anchor node)
+        # Pop 1st element of list(since it is anchor node).
         del path_dict[nodes][0]
 
-        if len(path_dict[nodes]) != walk_length:
-            # pad with 0 for fixed sequence length.
-            length_flag = len(path_dict[nodes])
-            for _ in range(length_flag, walk_length):
-                path_dict[nodes].append(0)
-            print(path_dict)
-        else:
-            continue
-    print('\n\n')
-    print(path_dict)
-        # print(len(path_dict.keys()))
-        # quit()
+    return path_dict
 
-    
 
 def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_PARAMS):
     """
-    Find connected nodes, using transition probability. 
+    Find connected nodes, using transition probability. \n
+        ###\n
+            This code only finds un-visited nodes.\n
+            (no re-visiting to previously visited node.)\n
+        ###
     """
     select_prob = {}
-    # print(f"@@@@@@@@@@@@@@@@@@ {current_node} @@@@@@@@@@@@@@@@@@@")
+
+    # Here, in social network we using, we don't have any edge weights.
+    # So set transition(selecting neighbor node) probability to 1.
     for node in graph.neighbors(current_node):
-        # select_prob[node] = 1
-        # if len(list(graph.neighbors(current_node))) == 1:
-        #     print(f"지ㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣ {node} ㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣㅣ")
-        #     print(node)
-        #     print(list((graph.neighbors(current_node))))
-        #     # quit()
-        #     return node
-        # if (node == previous_node):
-        #     # 현재 노드의 이웃 중에서 바로 직전의 노드는 제외
-        #     print(f"88888888888888888888  {node}  88888888888888888888888")
-        #     select_prob[node] = 0.0
-        #     continue
-        # print(f"################### {node} ###################")
+        if node != previous_node:
+            select_prob[node] = 1   
 
-        # Here, in social network we using, we don't have any edge weights. 
-        # So set select probability to 1.
-        select_prob[node] = 1
-    # print(select_prob)
-
-    # 이전에 방문한 노드(또는 시작 노드)로 돌아갈 확률은 0으로.
-    if previous_node is not None:
-        del select_prob[previous_node]
-    else:
-        RETURN_PARAMS = 0.0
-    
+    # Set transition probabilites equally(for randomness).
     select_prob_sum = sum(select_prob.values())
-    # {k: v/select_probabilities_sum*(1-RETURN_PARAMS) for k, v in select_probabilities.items()}
     select_prob = {key: value / select_prob_sum * (1 - RETURN_PARAMS) for key, value in select_prob.items()}
 
-    # print(select_prob)
-    # quit()
-    # if select_prob[previous_node] == 0.0:
-    #     print('AAAAAAAAAaa')
-    #     return previous_node
+    transitionable_nodes = [node for node in select_prob.keys()]
+    transition_prob = [prob for prob in select_prob.values()]
 
-    if previous_node is not None:
-        select_prob[previous_node] = RETURN_PARAMS
-    
-    # print(previous_node)
-    # print(select_prob)
-    
+    # If no nodes are selected, return 0 for zero-padding.
+        # isolated node pair will return 0.
+        # also "previous->current->(empty)" will return 0, too.
+    if len(transitionable_nodes) == 0:
+        return 0
+
     selected_node = np.random.choice(
-        a = [node for node in select_prob.keys()],
-        p = [prob for prob in select_prob.values()]
+        a = transitionable_nodes,
+        p = transition_prob
     )
 
     return selected_node
 
-
-generate_social_random_walk_sequence(data_path)
+# For checking
+sequences = generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20)
+for key, value in sequences.items():
+    print({f"{key} : {value}"})
+    print(f"\t => length: {len(value)}")
