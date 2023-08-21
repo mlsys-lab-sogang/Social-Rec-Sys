@@ -60,9 +60,9 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
     Generate & return degree table from social graph(trustnetwork).
     """
     # processed file check
-    if 'social_degree.csv' in os.listdir(data_path):
+    if 'degree_table_social.csv' in os.listdir(data_path):
         print("Processed .csv file already exists...")
-        degree_df = pd.read_csv(data_path + '/social_degree.csv', index_col=[])
+        degree_df = pd.read_csv(data_path + '/degree_table_social.csv', index_col=[])
         return degree_df
 
     # user-user network
@@ -75,7 +75,34 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
     degrees = {node: val for (node, val) in social_graph.degree()}
     degree_df = pd.DataFrame(degrees.items(), columns=['user_id', 'degree'])
 
-    degree_df.to_csv(data_path + '/social_degree.csv', index=False)
+    degree_df.to_csv(data_path + '/degree_table_social.csv', index=False)
+
+    return degree_df
+
+def generate_item_degree_table(data_path:str) -> pd.DataFrame:
+    """
+    Generate & return degree table from user-item graph(rating matrix).
+    """
+    # processed file check
+    if 'degree_table_item.csv' in os.listdir(data_path):
+        print("Processed .csv file already exists...")
+        degree_df = pd.read_csv(data_path + '/degree_table_item.csv', index_col=[])
+        return degree_df
+    
+    # user-item network
+        # Ciao: 
+    rating_file = data_path + '/rating.csv'
+    dataframe = pd.read_csv(rating_file, index_col=[])
+
+    # Since using NetworkX to compute bipartite graph's degree is time-consuming(because graph is too sparse),
+    # we just use pandas for simple degree calculation.
+    degree_df = dataframe.groupby('product_id')['user_id'].nunique().reset_index()
+    # degree_df = dataframe.groupby('user_id')['product_id'].nunique().reset_index()
+
+    degree_df.columns = ['product_id', 'degree']
+    # degree_df.columns = ['user_id', 'degree']
+
+    degree_df.to_csv(data_path + '/degree_table_item.csv', index=False)
 
     return degree_df
 
@@ -215,11 +242,14 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
-# For checking
-sequence_list = generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=True)
+
+## For checking
+# sequence_list = generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=False)
 # for sequences in sequence_list:
 #     for key, value in sequences.items():
 #         # print({f"{key} : {value}"})
 #         print(key)
 #         print('\t', value[0])
 #         print('\t', value[1])
+degree_df = generate_item_degree_table(data_path=data_path)
+print(degree_df)
