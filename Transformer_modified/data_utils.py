@@ -242,6 +242,37 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
+def find_non_existing_user_in_social_graph(data_path):
+    """
+    There are some non-existing users in social network, while they exists in user-item network.
+        rating: 7,375 user
+        social: 7,317 user
+        => 58 users are missing in social network.
+    """
+    rating = pd.read_csv(data_path + '/rating.csv', index_col=[])
+    social = pd.read_csv(data_path + '/trustnetwork.csv', index_col=[])
+
+    social_network = nx.from_pandas_edgelist(social, source='user_id_1', target='user_id_2')
+
+    rating_user = rating['user_id'].unique()
+    social_user = []
+    for node in social_network.nodes():
+        social_user.append(node)
+    
+    social_user = np.array(social_user)
+
+    # print(social_user.shape, rating_user.shape)
+    user_not_in_social_graph = np.setxor1d(rating_user, social_user)
+    print(user_not_in_social_graph.tolist())
+    print(len(user_not_in_social_graph))
+    
+    # get those user's interacted items
+    for user in user_not_in_social_graph:
+        interacted_items = rating['product_id'].loc[rating['user_id'] == user].values
+        print(f"user {user}: {len(interacted_items)}")
+    
+    # TODO: return type?
+
 
 ## For checking
 # sequence_list = generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=False)
