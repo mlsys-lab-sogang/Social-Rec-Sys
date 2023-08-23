@@ -2,10 +2,11 @@ import os
 import networkx as nx
 import numpy as np
 import pandas as pd
-import scipy.sparse as sp
-from scipy.io import loadmat
 
+import torch
 from torch.utils.data import Dataset, DataLoader
+
+import data_utils as utils
 
 class MyDataset(Dataset):
     """
@@ -14,95 +15,60 @@ class MyDataset(Dataset):
         __getitem__():  data indexing (e.g. dataset[0])
         __len__():      length of dataset (e.g. len(dataset))
     """
-    def __init__(self, raw_data:str, flag='user'):
+    def __init__(self, dataset:str):
         """
         Args:
-            raw_data: raw dataset name (ciao or epinions)
-            flag: to use specific dataset ('user' or 'item'. default: 'user')
+            dataset: raw dataset name (ciao or epinions)
         """
-        if flag == 'user':
-            self.flag = flag
-            filename = 'trustnetwork.csv'
-        elif flag == 'item':
-            self.flag = flag
-            filename = 'rating.csv'
+        self.root_dir = os.getcwd() + '/dataset/'
+        self.data_path = self.root_dir + dataset        # /dataset/ciao || /dataset/epinions
 
-        # self.mat_to_csv(raw_data)
-        matrix = self.load_file_to_pair(os.getcwd() + '/dataset/ciao/' + filename)
+        # generate random walk sequence
+            # If `seed=True`, duplicated nodes will appear. (since seed is fixed for np.random.choice())
+            # used for debugging & building
+        random_walk_seq = utils.generate_social_random_walk_sequence(
+            data_path = self.data_path,
+            num_nodes = 10,
+            walk_length = 20,
+            seed = True,
+            # all_node=True
+        )
 
-    def mat_to_csv(self, raw_data:str):
-        """
-        Convert .mat file into .csv file for using pandas.
-            Ciao: rating.mat, trustnetwork.mat
-            Epinions: rating.mat, trustnetwork.mat
+        # generate item interaction information 
+            # number of interacted items of users(ciao): max 10,671, min 28, mean 260.4, std: 488.3
+        # social_user_interact_items = utils.find_social_user_interacted_items(self.data_path, random_walk_seq)     # users in random walk sequence
+        input_user_interact_items = utils.find_selected_user_interacted_items(self.data_path, random_walk_seq)    # users in random walk's start
+
+        # encoder's input user list
+            # shape: (num_nodes, )  
+        self.enc_input_user = np.array(list(input_user_interact_items.keys()))
         
-        Args:
-            mat_file: Path to .mat file
-        """
-        root_dir = os.getcwd() + '/dataset/'
-        data_path = root_dir + raw_data
+        # generate(fetch) each input user's random walk sequence nodes.
+        # will be used in user-user relation encoding.
+            # shape: (num_nodes. walk_length)
+        user_stack = []
+        for walks in random_walk_seq:
+            for k, value in walks.items():
+                user_stack.append(value[0])
+        self.enc_input_friends = np.array(list(zip(*user_stack))).T
 
-        # processed file check
-        if (data_path + '/rating.csv' and data_path + '/trustnetwork.csv') in os.listdir(data_path):
-            print("Processed .csv file already exists")
-            return 0
+        print(self.enc_input_user.shape)
+        print(self.enc_input_friends.shape)
 
-        # load .mat file
-        rating_file = loadmat(data_path + '/' + 'rating.mat')
-        trust_file = loadmat(data_path + '/' + 'trustnetwork.mat')
-
-        # get only usable data from .mat file
-            # rating_file's columns: [user_id, product_id, category_id, rating, helpfulness]
-            # trust_file's columns: [user_id_1, user_id_2]
-        rating_file = rating_file['rating'].astype(np.int64)
-        trust_file = trust_file['trustnetwork'].astype(np.int64)
-
-        # convert into dataframe
-        rating_df = pd.DataFrame(rating_file, columns=['user_id', 'product_id', 'category_id', 'rating', 'helpfulness'])
-        trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
-
-        # drop unused columns
-        rating_df.drop(['category_id', 'helpfulness'], axis=1, inplace=True)
-
-        rating_df.to_csv(data_path + '/rating.csv', index=False)#, header=False, sep='\t')
-        trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)#, header=False, sep='\t')
-
-    def load_file_to_pair(self, csv_file):
-        if self.flag == 'user':
-            """
-            returns user list
-            """
-            dataframe = pd.read_csv(csv_file, index_col=[])
-            # num_users = len(dataframe['user_id'].unique())
-            user_matrix = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
-            user_matrix = nx.to_dict_of_lists(user_matrix)
-
-            return user_matrix
+        # TODO: Need to pre-define number of interacted items.
+            # If not, ndarray's length will be shortest length of interacted item.
+            # refer: https://stackoverflow.com/questions/53051560/stacking-numpy-arrays-of-different-length-using-padding
+        # generate(fetch) each input user's interacted items
+            # shape: [num_nodes, pre_defined_num_items]
+        item_stack = []
+        for key, value in input_user_interact_items.items():
+            item_stack.append(value[0])
+        for item in item_stack:
+            print(len(item))
+        # self.dec_input_items = np.array(list(zip(*item_stack))).T
+        # print(self.dec_input_items)
 
 
-        if self.flag == 'item':
-            """
-            returns item list, interacted with users
-            """
-            dataframe = pd.read_csv(csv_file, index_col=[])
-            num_users = len(dataframe['user_id'].unique())
-            num_items = len(dataframe['product_id'].unique())
-
-            # # DoK matrix: user-item matrix에서 0이 아닌 위치를 기록
-            # matrix = sp.dok_matrix((num_users, num_items), dtype=np.float32)
-
-            # # input values to matrix
-            # with open(csv_file, 'r') as f:
-            #     next(f)
-            #     line = f.readline()
-            #     while line != None and line != "":
-            #         arr = line.split(',')
-            #         user, item, rating = int(arr[0]), int(arr[1]), int(arr[2])
-
-            #         # if rating exists, put it into matrix
-            #         if rating > 0:
-            #             matrix[user, item] = rating
-            #         line = f.readline()
 
 
-dataset = MyDataset(raw_data='ciao', flag='user')
+dataset = MyDataset(dataset='ciao')
