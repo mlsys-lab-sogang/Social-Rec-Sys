@@ -13,6 +13,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from ast import literal_eval    # convert str type list to original type
 from scipy.io import loadmat
 from tqdm.auto import tqdm
 
@@ -108,9 +109,9 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     return degree_df
 
 
-def find_interacted_items(data_path:str) -> pd.DataFrame:
+def generate_interacted_items_table(data_path:str) -> pd.DataFrame:
     """
-    Find user's interacted items.
+    Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
     """
     # processed file check
     if 'user_item_interaction.csv' in os.listdir(data_path):
@@ -307,6 +308,71 @@ def find_non_existing_user_in_social_graph(data_path):
     # TODO: return type?
 
 
+def find_social_user_interacted_items(data_path:str, walk_list:list) -> dict:
+    """
+    Find (social) user's interacted items from user-item network. \n
+        => 주어진 random walk sequence에서 sequence 상에 위치하는 사용자들이 상호작용을 한 item과 rating 정보를 get
+
+    Return:
+        list of items & ratings interacted with by all users in random walk sequence. \n
+        => 주어진 random walk sequence에 해당하는 사용자(sequence node)가 상호작용한 아이템-평점 정보 리스트
+
+    Args;
+        data_path: path to data
+        walk_list: random walk sequences, result of `generate_social_random_walk_sequence`. 
+    """
+    # Table which consists user's interacted item & rating information.
+    user_item_table = generate_interacted_items_table(data_path)
+
+    # Find random walk user's interacted items
+        # this user value will used as key.
+    interaction_dict = {}
+    for walks in walk_list:                 # Overall random walk loop
+        for key, value in walks.items():    # 1 random walk sequence loop
+            for user_indexer in value[0]:   # Selected random walk sequence's node(user) loop
+                interaction_dict[user_indexer] = [[], []]
+                interacted_items = literal_eval(user_item_table['product_id'].loc[user_item_table['user_id'] == user_indexer].values[0])
+                interacted_ratings = literal_eval(user_item_table['rating'].loc[user_item_table['user_id'] == user_indexer].values[0])
+                interaction_dict[user_indexer][0] = interacted_items
+                interaction_dict[user_indexer][1] = interacted_ratings
+    
+    # this dict will contain all user(in r.w. sequence's sequence node)'s interaction information from given walks.
+    return interaction_dict
+
+
+def find_selected_user_interacted_items(data_path:str, walk_list:list) -> dict:
+    """
+    Find selected user's interacted items from user-item network.
+        => 주어진 random walk sequence에서 key에 해당하는 사용자들이 상호작용을 한 item과 rating 정보를 get
+
+    Return:
+        list of items & ratings interacted with users in random walk sequence's start. \n
+        => 주어진 random walk sequence에서 시작점에 해당하는 사용자(start node)가 상호작용한 아이템-평점 정보
+
+    Args;
+        data_path: path to data
+        walk_list: random walk sequences, result of `generate_social_random_walk_sequence`. 
+    """
+    user_item_table = generate_interacted_items_table(data_path)
+
+    # Extract 'key' user(random walk sequence's starting node). 
+    key_users = []
+    for walks in walk_list:
+        key_users.append(*walks)
+    
+    # Find those key user's interacted items & ratings.
+    user_dict = {}
+    for user in key_users:
+        user_dict[user] = [[], []]
+        interacted_items = literal_eval(user_item_table['product_id'].loc[user_item_table['user_id'] == user].values[0])
+        interacted_ratings = literal_eval(user_item_table['rating'].loc[user_item_table['user_id'] == user].values[0])
+
+        user_dict[user][0] = interacted_items
+        user_dict[user][1] = interacted_ratings
+    
+    # This dict will contain all user(in r.w. sequence's start node)'s interaction information from given walks.
+    return user_dict
+
 ## For checking
 # sequence_list = generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=False)
 # for sequences in sequence_list:
@@ -315,5 +381,20 @@ def find_non_existing_user_in_social_graph(data_path):
 #         print(key)
 #         print('\t', value[0])
 #         print('\t', value[1])
-interaction_df = find_interacted_items(data_path)
-print(interaction_df)
+# interaction_df = find_interacted_items(data_path)
+# print(interaction_df)
+
+# walk_list = generate_social_random_walk_sequence(data_path, num_nodes=5, walk_length=2, save_flag=False, all_node=False, seed=True)
+# key_user_item_list = find_selected_user_interacted_items(data_path, walk_list)
+# walk_user_item_list = find_social_user_interacted_items(data_path, walk_list)
+
+# # random walk sequence
+# print(walk_list)
+# print('\n')
+
+# # random walk sequence에서 시작점에 해당하는 사용자 (input) 들이 상호작용한 item 목록
+# print(key_user_item_list)
+# print('\n')
+
+# # random walk sequence에서 방문된 사용자(시작점 이후의 사용자)들이 상호작용한 item 목록
+# print(walk_user_item_list)
