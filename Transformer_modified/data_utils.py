@@ -18,9 +18,9 @@ from scipy.io import loadmat
 from tqdm.auto import tqdm
 
 # arg(or else) passing to DATASET later
-DATASET = 'ciao'
+# DATASET = 'ciao'
 
-data_path = os.getcwd() + '/dataset/' + DATASET
+# data_path = os.getcwd() + '/dataset/' + DATASET
 
 
 def mat_to_csv(data_path:str):
@@ -331,10 +331,16 @@ def find_social_user_interacted_items(data_path:str, walk_list:list) -> dict:
         for key, value in walks.items():    # 1 random walk sequence loop
             for user_indexer in value[0]:   # Selected random walk sequence's node(user) loop
                 interaction_dict[user_indexer] = [[], []]
-                interacted_items = literal_eval(user_item_table['product_id'].loc[user_item_table['user_id'] == user_indexer].values[0])
-                interacted_ratings = literal_eval(user_item_table['rating'].loc[user_item_table['user_id'] == user_indexer].values[0])
-                interaction_dict[user_indexer][0] = interacted_items
-                interaction_dict[user_indexer][1] = interacted_ratings
+                
+                # If there is no walks (padded with 0), handle this.
+                if user_indexer == 0:
+                    interaction_dict[user_indexer][0].append(0)
+                    interaction_dict[user_indexer][1].append(0)
+                else:
+                    interacted_items = literal_eval(user_item_table['product_id'].loc[user_item_table['user_id'] == user_indexer].values[0])
+                    interacted_ratings = literal_eval(user_item_table['rating'].loc[user_item_table['user_id'] == user_indexer].values[0])
+                    interaction_dict[user_indexer][0] = interacted_items
+                    interaction_dict[user_indexer][1] = interacted_ratings
     
     # this dict will contain all user(in r.w. sequence's sequence node)'s interaction information from given walks.
     return interaction_dict
@@ -398,3 +404,11 @@ def find_selected_user_interacted_items(data_path:str, walk_list:list) -> dict:
 
 # # random walk sequence에서 방문된 사용자(시작점 이후의 사용자)들이 상호작용한 item 목록
 # print(walk_user_item_list)
+# df = generate_interacted_items_table(data_path=os.getcwd() + '/dataset/ciao')
+# # print(len(df['product_id'][0]))
+# df['num_items'] = df.apply(lambda x: len(x['product_id']), axis=1)
+# print(df['num_items'].describe())
+
+# import matplotlib.pyplot as plt
+# df['num_items'].plot(kind='box')
+# plt.show()
