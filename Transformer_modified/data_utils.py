@@ -79,6 +79,7 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
 
     return degree_df
 
+
 def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     """
     Generate & return degree table from user-item graph(rating matrix).
@@ -90,7 +91,7 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
         return degree_df
     
     # user-item network
-        # Ciao: 
+        # Ciao: 7375 user // 105114 items
     rating_file = data_path + '/rating.csv'
     dataframe = pd.read_csv(rating_file, index_col=[])
 
@@ -105,6 +106,38 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     degree_df.to_csv(data_path + '/degree_table_item.csv', index=False)
 
     return degree_df
+
+
+def find_interacted_items(data_path:str) -> pd.DataFrame:
+    """
+    Find user's interacted items.
+    """
+    # processed file check
+    if 'user_item_interaction.csv' in os.listdir(data_path):
+        print("Processed .csv file already exists...")
+        user_item_dataframe = pd.read_csv(data_path + '/user_item_interaction.csv', index_col=[])
+        return user_item_dataframe
+
+    rating_file = data_path + '/rating.csv'
+    dataframe = pd.read_csv(rating_file, index_col=[])
+
+    # For each user, find their interacted items and given rating.
+
+    ## This will make dict with list of list: {user_id: [[product_id, ...], [rating, ...]], user_id: [[product_id, ...], [rating, ...]], ...} 
+    # user_dict = {}
+    # for _, data in dataframe.iterrows():
+    #     if data['user_id'] not in user_dict:
+    #         user_dict[data['user_id']] = [[], []]
+    #     user_dict[data['user_id']][0].append(data['product_id'])
+    #     user_dict[data['user_id']][1].append(data['rating'])
+
+    ## This will make dict of dict: {user_id: {product_id:[...], rating:[...]}, user_id:{product_id:[...], rating:[...]}, ...}
+    user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
+    user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
+    # user_item_dataframe = user_item_dataframe.set_index('user_id').to_dict(orient='index')
+
+    return user_item_dataframe
+
 
 
 def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, seed=False) -> list:
@@ -282,5 +315,5 @@ def find_non_existing_user_in_social_graph(data_path):
 #         print(key)
 #         print('\t', value[0])
 #         print('\t', value[1])
-degree_df = generate_item_degree_table(data_path=data_path)
-print(degree_df)
+interaction_df = find_interacted_items(data_path)
+print(interaction_df)
