@@ -9,6 +9,7 @@ trustnetwork 에서 random walk sequence 생성
         => [[node1, node2, node3]]
 """
 import os
+import random
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -109,14 +110,18 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     return degree_df
 
 
-def generate_interacted_items_table(data_path:str) -> pd.DataFrame:
+def generate_interacted_items_table(data_path:str, item_length=4) -> pd.DataFrame:
     """
     Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
+
+    Args:
+        data_path: path to dataset
+        item_length: number of interacted items to fetch
     """
     # processed file check
-    if 'user_item_interaction.csv' in os.listdir(data_path):
+    if f'user_item_interaction_item_length_{item_length}.csv' in os.listdir(data_path):
         print("Processed .csv file already exists...")
-        user_item_dataframe = pd.read_csv(data_path + '/user_item_interaction.csv', index_col=[])
+        user_item_dataframe = pd.read_csv(data_path + f'/user_item_interaction_item_length_{item_length}.csv', index_col=[])
         return user_item_dataframe
 
     rating_file = data_path + '/rating.csv'
@@ -134,11 +139,20 @@ def generate_interacted_items_table(data_path:str) -> pd.DataFrame:
 
     ## This will make dict of dict: {user_id: {product_id:[...], rating:[...]}, user_id:{product_id:[...], rating:[...]}, ...}
     user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
-    user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
+    # user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
     # user_item_dataframe = user_item_dataframe.set_index('user_id').to_dict(orient='index')
 
-    return user_item_dataframe
+    # Sample fixed number of interacted items.
+        # TODO: pad with 0 for 'len(product_id) < item_length'
+    user_item_dataframe['indices'] = user_item_dataframe.apply(lambda x: np.random.choice(len(x['product_id']), item_length, replace=False), axis=1)
+    
+    user_item_dataframe['product_id'] = user_item_dataframe.apply(lambda x: [x['product_id'][i] for i in x['indices']], axis=1)
+    user_item_dataframe['rating'] = user_item_dataframe.apply(lambda x: [x['rating'][i] for i in x['indices']], axis=1)
+    user_item_dataframe.drop(columns=['indices'], inplace=True)
+    
+    user_item_dataframe.to_csv(data_path + f'/user_item_interaction_item_length_{item_length}.csv', index=False)
 
+    return user_item_dataframe
 
 
 def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, seed=False) -> list:
@@ -321,6 +335,8 @@ def find_social_user_interacted_items(data_path:str, walk_list:list) -> dict:
         data_path: path to data
         walk_list: random walk sequences, result of `generate_social_random_walk_sequence`. 
     """
+    # TODO: Need to pre-define number of interacted items.
+
     # Table which consists user's interacted item & rating information.
     user_item_table = generate_interacted_items_table(data_path)
 
@@ -357,8 +373,10 @@ def find_selected_user_interacted_items(data_path:str, walk_list:list) -> dict:
 
     Args;
         data_path: path to data
-        walk_list: random walk sequences, result of `generate_social_random_walk_sequence`. 
+        walk_list: random walk sequences, result of `generate_social_random_walk_sequence`.
     """
+    # TODO: Need to pre-define number of interacted items.
+    
     user_item_table = generate_interacted_items_table(data_path)
 
     # Extract 'key' user(random walk sequence's starting node). 
