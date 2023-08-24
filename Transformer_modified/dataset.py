@@ -30,7 +30,7 @@ class MyDataset(Dataset):
         self.item_sequences = torch.FloatTensor(item_sequences)     # (num_user, item_length)
         self.item_rating = torch.FloatTensor(item_rating)           # (num_user, item_length)
 
-        assert len(self.user_sequences) == len(self.user_degree) == len(self.item_sequences) == len(self.item_rating), (
+        assert len(self.user_sequences)+1 == len(self.user_degree)+1 == len(self.item_sequences) == len(self.item_rating), (
             f"All data should have same length: {len(self.user_sequences)}, {len(self.user_degree)}, {len(self.item_sequences)}, {len(self.item_rating)}"
         )
 
@@ -40,8 +40,16 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         user_seq = self.user_sequences[idx]
         user_deg = self.user_degree[idx]
-        item_seq = self.item_sequences[idx]
-        item_rating = self.item_rating[idx]
+
+        # since we need all user in random walk sequence's interacted items, fetch it with sequence value as index.
+        item_indexer = [int(x) for x in user_seq.numpy()]
+        item_list, rating_list = [], []
+        for index in item_indexer:
+            item_list.append(self.item_sequences[index])
+            rating_list.append(self.item_rating[index])
+
+        item_seq = torch.stack(item_list, 0)
+        item_rating = torch.stack(item_list, 0)
     
         return user_seq, user_deg, item_seq, item_rating
 
@@ -86,7 +94,7 @@ class MyDataset(Dataset):
 if __name__ == "__main__":
     # for testing & debugging
     dataset = MyDataset(dataset='ciao')
-    loader = DataLoader(dataset, batch_size=1, shuffle=True)
+    loader = DataLoader(dataset, batch_size=2, shuffle=True)
     for data in loader:
         print(data[0].shape)
         print(data[1].shape)
