@@ -194,20 +194,24 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
     for nodes in tqdm(anchor_nodes, desc="Generating random walk sequence..."):
         path_dict = {}
         path_dict[nodes] = [nodes]
-        for _ in range(walk_length - 1):
+        # for _ in range(walk_length - 1):
+        for _ in range(walk_length):
             # Move to one of connected node randomly.
             if path_dict[nodes][-1] == nodes:
                 next_node = find_next_social_node(graph=social_graph, previous_node=None, current_node=nodes, RETURN_PARAMS=0.0, seed=seed)
                 path_dict[nodes].append(next_node)
 
             # If selected node was "edge node", there is no movable nodes, so pad it with 0(zero-padding).
-            if path_dict[nodes][-1] == 0:
+            elif path_dict[nodes][-1] == 0:
                 path_dict[nodes].append(0)
 
             # Move to one of connected node randomly.
             else:
                 next_node = find_next_social_node(graph=social_graph, previous_node=path_dict[nodes][-2], current_node=path_dict[nodes][-1], RETURN_PARAMS=0.0, seed=seed)
                 path_dict[nodes].append(next_node)
+            
+            if len(path_dict[nodes]) > 20:
+                continue
         
         # Pop 1st element of list(since it is anchor node).
         del path_dict[nodes][0]
@@ -397,36 +401,39 @@ def find_selected_user_interacted_items(data_path:str, walk_list:list) -> dict:
     # This dict will contain all user(in r.w. sequence's start node)'s interaction information from given walks.
     return user_dict
 
-## For checking
-# sequence_list = generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=False)
-# for sequences in sequence_list:
-#     for key, value in sequences.items():
-#         # print({f"{key} : {value}"})
-#         print(key)
-#         print('\t', value[0])
-#         print('\t', value[1])
-# interaction_df = find_interacted_items(data_path)
-# print(interaction_df)
 
-# walk_list = generate_social_random_walk_sequence(data_path, num_nodes=5, walk_length=2, save_flag=False, all_node=False, seed=True)
-# key_user_item_list = find_selected_user_interacted_items(data_path, walk_list)
-# walk_user_item_list = find_social_user_interacted_items(data_path, walk_list)
+if __name__ == "__main__":
+    ##### For checking & debugging (will remove later)
+    # sequence_list = generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=False)
+    # for sequences in sequence_list:
+    #     for key, value in sequences.items():
+    #         # print({f"{key} : {value}"})
+    #         print(key)
+    #         print('\t', value[0])
+    #         print('\t', value[1])
+    # interaction_df = find_interacted_items(data_path)
+    # print(interaction_df)
 
-# # random walk sequence
-# print(walk_list)
-# print('\n')
+    # walk_list = generate_social_random_walk_sequence(data_path, num_nodes=5, walk_length=2, save_flag=False, all_node=False, seed=True)
+    # key_user_item_list = find_selected_user_interacted_items(data_path, walk_list)
+    # walk_user_item_list = find_social_user_interacted_items(data_path, walk_list)
 
-# # random walk sequence에서 시작점에 해당하는 사용자 (input) 들이 상호작용한 item 목록
-# print(key_user_item_list)
-# print('\n')
+    # # random walk sequence
+    # print(walk_list)
+    # print('\n')
 
-# # random walk sequence에서 방문된 사용자(시작점 이후의 사용자)들이 상호작용한 item 목록
-# print(walk_user_item_list)
-# df = generate_interacted_items_table(data_path=os.getcwd() + '/dataset/ciao')
-# # print(len(df['product_id'][0]))
-# df['num_items'] = df.apply(lambda x: len(x['product_id']), axis=1)
-# print(df['num_items'].describe())
+    # # random walk sequence에서 시작점에 해당하는 사용자 (input) 들이 상호작용한 item 목록
+    # print(key_user_item_list)
+    # print('\n')
 
-# import matplotlib.pyplot as plt
-# df['num_items'].plot(kind='box')
-# plt.show()
+    # # random walk sequence에서 방문된 사용자(시작점 이후의 사용자)들이 상호작용한 item 목록
+    # print(walk_user_item_list)
+    # df = generate_interacted_items_table(data_path=os.getcwd() + '/dataset/ciao')
+    # # print(len(df['product_id'][0]))
+    # df['num_items'] = df.apply(lambda x: len(x['product_id']), axis=1)
+    # print(df['num_items'].describe())
+
+    # import matplotlib.pyplot as plt
+    # df['num_items'].plot(kind='box')
+    # plt.show()
+    pass
