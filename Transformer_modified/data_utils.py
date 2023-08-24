@@ -35,7 +35,7 @@ def mat_to_csv(data_path:str):
     """
     # processed file check
     if ('rating.csv' or 'trustnetwork.csv') in os.listdir(data_path):
-        print("Processed .csv file already exists...")
+        print("Processed files already exists...")
         return 0
     
     # load .mat file
@@ -63,7 +63,7 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
     """
     # processed file check
     if 'degree_table_social.csv' in os.listdir(data_path):
-        print("Processed .csv file already exists...")
+        print("Processed 'degree_table_social.csv' file already exists...")
         degree_df = pd.read_csv(data_path + '/degree_table_social.csv', index_col=[])
         return degree_df
 
@@ -88,7 +88,7 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     """
     # processed file check
     if 'degree_table_item.csv' in os.listdir(data_path):
-        print("Processed .csv file already exists...")
+        print(f"Processed 'degree_table_item.csv' file already exists...")
         degree_df = pd.read_csv(data_path + '/degree_table_item.csv', index_col=[])
         return degree_df
     
@@ -294,12 +294,13 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
-def find_non_existing_user_in_social_graph(data_path):
+def find_non_existing_user_in_social_graph(data_path, print_flag=False):
     """
     There are some non-existing users in social network, while they exists in user-item network.
-        rating: 7,375 user
-        social: 7,317 user
-        => 58 users are missing in social network.
+        Ciao:
+            rating: 7,375 user
+            social: 7,317 user
+            => 58 users are missing in social network.
     """
     rating = pd.read_csv(data_path + '/rating.csv', index_col=[])
     social = pd.read_csv(data_path + '/trustnetwork.csv', index_col=[])
@@ -315,15 +316,17 @@ def find_non_existing_user_in_social_graph(data_path):
 
     # print(social_user.shape, rating_user.shape)
     user_not_in_social_graph = np.setxor1d(rating_user, social_user)
-    print(user_not_in_social_graph.tolist())
-    print(len(user_not_in_social_graph))
-    
-    # get those user's interacted items
-    for user in user_not_in_social_graph:
-        interacted_items = rating['product_id'].loc[rating['user_id'] == user].values
-        print(f"user {user}: {len(interacted_items)}")
+
+    if print_flag:
+        print(f"Users not exists (num: {len(user_not_in_social_graph)}): {user_not_in_social_graph.tolist()}")
+        
+        # get those user's interacted items
+        for user in user_not_in_social_graph:
+            interacted_items = rating['product_id'].loc[rating['user_id'] == user].values
+            print(f"user {user}: {len(interacted_items)}")
     
     # TODO: return type?
+    return user_not_in_social_graph.tolist()
 
 
 def find_social_user_interacted_items(data_path:str, walk_list:list) -> dict:
