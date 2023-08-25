@@ -25,10 +25,10 @@ class MyDataset(Dataset):
 
         user_sequences, user_degree, item_sequences, item_rating = self.load_data()
 
-        self.user_sequences = torch.FloatTensor(user_sequences)     # (num_user, walk_length)
-        self.user_degree = torch.FloatTensor(user_degree)           # (num_user, walk_length)
-        self.item_sequences = torch.FloatTensor(item_sequences)     # (num_user, item_length)
-        self.item_rating = torch.FloatTensor(item_rating)           # (num_user, item_length)
+        self.user_sequences = torch.LongTensor(user_sequences)      # (num_user, item_length)
+        self.user_degree = torch.LongTensor(user_degree)            # (num_user, item_length)
+        self.item_sequences = torch.LongTensor(item_sequences)      # (num_user, item_length)
+        self.item_rating = torch.LongTensor(item_rating)            # (num_user, item_length)
 
         assert len(self.user_sequences)+1 == len(self.user_degree)+1 == len(self.item_sequences) == len(self.item_rating), (
             f"All data should have same length: {len(self.user_sequences)}, {len(self.user_degree)}, {len(self.item_sequences)}, {len(self.item_rating)}"
@@ -42,6 +42,7 @@ class MyDataset(Dataset):
         user_deg = self.user_degree[idx]
 
         # since we need all user in random walk sequence's interacted items, fetch it with sequence value as index.
+        # FIXME: user_id values are different from num_user. NEED TO FIX(IndexError: index 7375 is out of bounds for axis 0 with size 7317)
         item_indexer = [int(x) for x in user_seq.numpy()]   # user_ids in user_seq
         item_list, rating_list = [], []
         for index in item_indexer:
