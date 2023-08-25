@@ -42,16 +42,18 @@ class MyDataset(Dataset):
         user_deg = self.user_degree[idx]
 
         # since we need all user in random walk sequence's interacted items, fetch it with sequence value as index.
-        item_indexer = [int(x) for x in user_seq.numpy()]
+        item_indexer = [int(x) for x in user_seq.numpy()]   # user_ids in user_seq
         item_list, rating_list = [], []
         for index in item_indexer:
             item_list.append(self.item_sequences[index])
             rating_list.append(self.item_rating[index])
 
         item_seq = torch.stack(item_list, 0)
-        item_rating = torch.stack(item_list, 0)
-    
-        return user_seq, user_deg, item_seq, item_rating
+        item_rating = torch.stack(rating_list, 0)
+
+        # TODO: Used dictionary to perform PyG-like data accessing.
+        # return user_seq, user_deg, item_seq, item_rating
+        return {'user_seq': user_seq, 'user_degree': user_deg, 'item_seq': item_seq, 'rating': item_rating}
 
     def load_data(self):
         """
@@ -80,7 +82,7 @@ class MyDataset(Dataset):
         # TODO: since there are users doesn't exist in social graph, but exists in user-item graph, drop those users in item table.
         non_users = utils.find_non_existing_user_in_social_graph(data_path=self.data_path)
         item_df = item_df[~item_df['user_id'].isin(non_users)]
-        item_df.reset_index(drop=True, inplace=True)
+        # item_df.reset_index(drop=True, inplace=True)  # FIXME: commented this since item_indexer get index out of bounds.
 
         # Since item_df's row element's type is 'list'(not 'str' like user_df), just convert it into ndarray.
         item_sequences = item_df['product_id'].to_numpy(dtype=object)
@@ -96,8 +98,10 @@ if __name__ == "__main__":
     dataset = MyDataset(dataset='ciao')
     loader = DataLoader(dataset, batch_size=2, shuffle=True)
     for data in loader:
-        print(data[0].shape)
-        print(data[1].shape)
-        print(data[2].shape)
-        print(data[3].shape)
+        # print(data[0].shape)
+        # print(data[1].shape)
+        # print(data[2].shape)
+        # print(data[3].shape)
+        print(data['user_seq'].shape)
+        print(data['user_seq'][0].shape)
         quit()
