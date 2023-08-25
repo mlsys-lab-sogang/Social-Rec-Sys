@@ -120,7 +120,7 @@ def generate_interacted_items_table(data_path:str, item_length=4) -> pd.DataFram
     """
     # processed file check
     if f'user_item_interaction_item_length_{item_length}.csv' in os.listdir(data_path):
-        print("Processed .csv file already exists...")
+        print(f"Processed 'user_item_interaction_length_{item_length}.csv' file already exists...")
         user_item_dataframe = pd.read_csv(data_path + f'/user_item_interaction_item_length_{item_length}.csv', index_col=[])
         return user_item_dataframe
 
@@ -149,6 +149,12 @@ def generate_interacted_items_table(data_path:str, item_length=4) -> pd.DataFram
     user_item_dataframe['product_id'] = user_item_dataframe.apply(lambda x: [x['product_id'][i] for i in x['indices']], axis=1)
     user_item_dataframe['rating'] = user_item_dataframe.apply(lambda x: [x['rating'][i] for i in x['indices']], axis=1)
     user_item_dataframe.drop(columns=['indices'], inplace=True)
+
+    # This is for indexing 0, where random walk sequence has padded with 0.
+    empty_data = [0, [0 for _ in range(item_length)], [0 for _ in range(item_length)]]
+    user_item_dataframe.loc[-1] = empty_data
+    user_item_dataframe.index = user_item_dataframe.index + 1
+    user_item_dataframe.sort_index(inplace=True)
     
     user_item_dataframe.to_csv(data_path + f'/user_item_interaction_item_length_{item_length}.csv', index=False)
 
@@ -325,7 +331,6 @@ def find_non_existing_user_in_social_graph(data_path, print_flag=False):
             interacted_items = rating['product_id'].loc[rating['user_id'] == user].values
             print(f"user {user}: {len(interacted_items)}")
     
-    # TODO: return type?
     return user_not_in_social_graph.tolist()
 
 
@@ -439,4 +444,12 @@ if __name__ == "__main__":
     # import matplotlib.pyplot as plt
     # df['num_items'].plot(kind='box')
     # plt.show()
-    pass
+    
+    data_path = os.getcwd() + '/dataset/' + 'ciao'
+    # walk_seq = generate_social_random_walk_sequence(data_path=data_path, num_nodes=5, walk_length=10, save_flag=False, all_node=False, seed=True)
+    # print(walk_seq)
+    # a = find_social_user_interacted_items(data_path, walk_list=walk_seq, item_length=4)
+    df = generate_interacted_items_table(data_path, 4)
+    # print(df)
+    
+    quit()
