@@ -11,23 +11,32 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super(ScaledDotProductAttention, self).__init__()
     
-    def forward(self, Q, K, V, mask=None):
+    def forward(self, Q, K, V, mask=None, attn_bias=None):
         # Input is 4-d tensor
             # (batch_size, head, length, d_tensor)
         batch_size, head, length, d_tensor = K.size()
 
         # 1. Compute similarity by Q.dot(K^T)
+            # d_tensor = d_model // num_head
+            # (batch_size, num_heads, seq_length, d_tensor) ==> (batch_size, num_heads, d_tensor, seq_length)
         K_T = K.transpose(2, 3)
         score = torch.matmul(Q, K_T) / math.sqrt(d_tensor)
+            # ==> (batch_size, num_heads, seq_length, seq_length)
 
         # 2. Apply attention mask
         if mask is not None:
             score = score.masked_fill(mask == 0, -10000)
 
+        # 3. Apply attention bias (spatial encoding)
+        # TODO: add attention bias before softmax
+        # if attn_bias is not None:
+            # score += 
+
         # 3. Pass score to softmax for making [0, 1] range.
         score = torch.softmax(score, dim=-1)
 
         # 4. Dot product with V
+            # (batch_size, num_heads, seq_length, d_tensor)
         V = torch.matmul(score, V)
 
         return V, score
@@ -51,15 +60,19 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, Q, K, V, mask=None):
         # 1. Dot produt with weight matrices
+            # (batch_size, seq_length, d_model)
         Q, K, V = self.W_Q(Q), self.W_K(K), self.W_V(V)
 
         # 2. Split tensor by number of heads
+            # d_tensor = d_model // num_heads
+            # (batch_size, num_heads, seq_lengths, d_tensor)
         Q, K, V = self.split(Q), self.split(K), self.split(V)
 
         # 3. Perform scaled-dot product attention
         out, attn = self.attention(Q, K, V, mask=mask)
 
         # 4. Concat and pass to linear layer
+            # (batch_size, seq_length, d_model)
         out = self.concat(out)
         out = self.W_concat(out)
 
