@@ -33,25 +33,33 @@ def mat_to_csv(data_path:str):
     Args:
         data_path: Path to .mat file
     """
+    dataset_name = data_path.split('/')[-1]
+
     # processed file check
     if ('rating.csv' or 'trustnetwork.csv') in os.listdir(data_path):
         print("Processed files already exists...")
         return 0
     
-    # load .mat file
-    rating_file = loadmat(data_path + '/' + 'rating.mat')
+    # load .mat file & convert to dataframe
+    if dataset_name == 'ciao':
+        rating_file = loadmat(data_path + '/' + 'rating.mat')
+        rating_file = rating_file['rating'].astype(np.int64)
+        rating_df = pd.DataFrame(rating_file, columns=['user_id', 'product_id', 'category_id', 'rating', 'helpfulness'])
+
+        # drop unused columns (TODO: Maybe used later)
+        rating_df.drop(['category_id', 'helpfulness'], axis=1, inplace=True)
+    
+    elif dataset_name == 'epinions':
+        rating_file = loadmat(data_path + '/' + 'rating_with_timestamp.mat')
+        rating_file = rating_file['rating_with_timestamp'].astype(np.int64)
+        rating_df = pd.DataFrame(rating_file, columns=['user_id', 'product_id', 'category_id', 'rating', 'helpfulness', 'timestamp'])
+
+        # drop unused columns (TODO: Maybe used later)
+        rating_df.drop(['category_id', 'helpfulness', 'timestamp'], axis=1, inplace=True)
+
     trust_file = loadmat(data_path + '/' + 'trustnetwork.mat')
-
-    rating_file = rating_file['rating'].astype(np.int64)
-    trust_file = trust_file['trustnetwork'].astype(np.int64)
-
-    # convert to dataframe
-    rating_df = pd.DataFrame(rating_file, columns=['user_id', 'product_id', 'category_id', 'rating', 'helpfulness'])
+    trust_file = trust_file['trustnetwork'].astype(np.int64)    
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
-
-    ###### drop unused columns (TODO: Maybe used later)
-    rating_df.drop(['category_id', 'helpfulness'], axis=1, inplace=True)
-    ######
 
     rating_df.to_csv(data_path + '/rating.csv', index=False)
     trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
@@ -69,6 +77,7 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
 
     # user-user network
         # Ciao: 7317 users
+        # Epinions: 18098 users
     trust_file = data_path + '/trustnetwork.csv'
     dataframe = pd.read_csv(trust_file, index_col=[])
 
@@ -300,13 +309,16 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
-def find_non_existing_user_in_social_graph(data_path, print_flag=False):
+def find_non_existing_user_in_social_graph(data_path, print_flag=False, save_flag=False):
     """
     There are some non-existing users in social network, while they exists in user-item network.
         Ciao:
             rating: 7,375 user
             social: 7,317 user
             => 58 users are missing in social network.
+        Epinions:
+            rating: 22,164 user
+            social: 18,098 user
     """
     rating = pd.read_csv(data_path + '/rating.csv', index_col=[])
     social = pd.read_csv(data_path + '/trustnetwork.csv', index_col=[])
@@ -330,8 +342,16 @@ def find_non_existing_user_in_social_graph(data_path, print_flag=False):
         for user in user_not_in_social_graph:
             interacted_items = rating['product_id'].loc[rating['user_id'] == user].values
             print(f"user {user}: {len(interacted_items)}")
-    
-    return user_not_in_social_graph.tolist()
+
+    if save_flag:
+        # Save `rating.csv`, eliminating non-existing users.
+        rating = rating[~rating['user_id'].isin(user_not_in_social_graph.tolist())]
+        rating.to_csv(data_path + '/rating.csv', index=False)
+        return 0
+    else:
+        return user_not_in_social_graph.tolist()
+
+
 
 
 def find_social_user_interacted_items(data_path:str, walk_list:list) -> dict:
@@ -451,5 +471,4 @@ if __name__ == "__main__":
     # a = find_social_user_interacted_items(data_path, walk_list=walk_seq, item_length=4)
     df = generate_interacted_items_table(data_path, 4)
     # print(df)
-    
     quit()
