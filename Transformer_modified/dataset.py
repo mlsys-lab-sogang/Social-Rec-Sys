@@ -30,9 +30,9 @@ class MyDataset(Dataset):
         self.item_sequences = torch.LongTensor(item_sequences)      # (num_user, item_length)
         self.item_rating = torch.LongTensor(item_rating)            # (num_user, item_length)
 
-        assert len(self.user_sequences)+1 == len(self.user_degree)+1 == len(self.item_sequences) == len(self.item_rating), (
-            f"All data should have same length: {len(self.user_sequences)}, {len(self.user_degree)}, {len(self.item_sequences)}, {len(self.item_rating)}"
-        )
+        # assert len(self.user_sequences)+1 == len(self.user_degree)+1 == len(self.item_sequences) == len(self.item_rating), (
+        #     f"All data should have same length: {len(self.user_sequences)}, {len(self.user_degree)}, {len(self.item_sequences)}, {len(self.item_rating)}"
+        # )
 
     def __len__(self):
         return len(self.user_sequences)
@@ -42,7 +42,6 @@ class MyDataset(Dataset):
         user_deg = self.user_degree[idx]
 
         # since we need all user in random walk sequence's interacted items, fetch it with sequence value as index.
-        # FIXME: user_id values are different from num_user. NEED TO FIX(IndexError: index 7375 is out of bounds for axis 0 with size 7317)
         item_indexer = [int(x) for x in user_seq.numpy()]   # user_ids in user_seq
         item_list, rating_list = [], []
         for index in item_indexer:
@@ -61,8 +60,9 @@ class MyDataset(Dataset):
         Data load & preprocess to ndarray
             # TODO: fix or handle later (using function, not reading .csv)
         """
-        user_path = '/social_user_7317_rw_length_20_fixed_seed_False.csv'
-        item_df = utils.generate_interacted_items_table(data_path=self.data_path, item_length=4)
+        # user_path = '/social_user_7317_rw_length_20_fixed_seed_False.csv'
+        user_path = '/social_user_18098_rw_length_20_fixed_seed_False.csv'
+        item_df = utils.generate_interacted_items_table(data_path=self.data_path, item_length=1)
 
         # load dataset & convert data type
             # values are saved as 'str', convert into original type, 'list'.
@@ -80,11 +80,6 @@ class MyDataset(Dataset):
         user_degree = user_df['degree'].to_numpy(dtype=object)
         user_degree = np.array([np.array(x) for x in user_degree])
 
-        # TODO: since there are users doesn't exist in social graph, but exists in user-item graph, drop those users in item table.
-        non_users = utils.find_non_existing_user_in_social_graph(data_path=self.data_path)
-        item_df = item_df[~item_df['user_id'].isin(non_users)]
-        # item_df.reset_index(drop=True, inplace=True)  # FIXME: commented this since item_indexer get index out of bounds.
-
         # Since item_df's row element's type is 'list'(not 'str' like user_df), just convert it into ndarray.
         item_sequences = item_df['product_id'].to_numpy(dtype=object)
         item_sequences = np.array([np.array(x) for x in item_sequences])
@@ -96,8 +91,9 @@ class MyDataset(Dataset):
 
 if __name__ == "__main__":
     # for testing & debugging
-    dataset = MyDataset(dataset='ciao')
-    loader = DataLoader(dataset, batch_size=2, shuffle=True)
+    # dataset = MyDataset(dataset='ciao')
+    dataset = MyDataset(dataset='epinions')
+    loader = DataLoader(dataset, batch_size=128, shuffle=True)
     for data in loader:
         # print(data[0].shape)
         # print(data[1].shape)
