@@ -11,6 +11,7 @@ def floyd_warshall(adjacency_matrix):
     (nrows, ncols) = adjacency_matrix.shape
     assert nrows == ncols
     cdef unsigned int n = nrows
+    cdef unsigned int threshold = nrows + 1    # unreachable nodes distance 
 
     adj_mat_copy = adjacency_matrix.astype(long, order='C', casting='safe', copy=True)
     assert adj_mat_copy.flags['C_CONTIGUOUS']
@@ -23,13 +24,14 @@ def floyd_warshall(adjacency_matrix):
     cdef long* M_i_ptr
     cdef long* M_k_ptr
 
-    # set unreachable nodes distance to 510
+    # set unreachable nodes distance to threshold
     for i in range(n):
         for j in range(n):
             if i == j:
                 M[i][j] = 0
             elif M[i][j] == 0:
-                M[i][j] = 510
+                # M[i][j] = 510
+                M[i][j] = threshold
 
     # floyed algo
     for k in range(n):
@@ -44,12 +46,15 @@ def floyd_warshall(adjacency_matrix):
                     M_i_ptr[j] = cost_ikkj
                     path[i][j] = k
 
-    # set unreachable path to 510
+    # set unreachable nodes distance to threshold
     for i in range(n):
         for j in range(n):
-            if M[i][j] >= 510:
-                path[i][j] = 510
-                M[i][j] = 510
+            # if M[i][j] >= 510:
+            #     path[i][j] = 510
+            #     M[i][j] = 510
+            if M[i][j] >= threshold:
+                path[i][j] = threshold
+                M[i][j] = threshold
 
     return M, path
 
