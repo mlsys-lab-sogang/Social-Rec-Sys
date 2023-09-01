@@ -60,8 +60,8 @@ class MyDataset(Dataset):
         Data load & preprocess to ndarray
             # TODO: fix or handle later (using function, not reading .csv)
         """
-        # user_path = '/social_user_7317_rw_length_20_fixed_seed_False.csv'
-        user_path = '/social_user_18098_rw_length_20_fixed_seed_False.csv'
+        user_path = '/social_user_7317_rw_length_20_fixed_seed_False.csv'
+        # user_path = '/social_user_18098_rw_length_20_fixed_seed_False.csv'
         item_df = utils.generate_interacted_items_table(data_path=self.data_path, item_length=1)
 
         # load dataset & convert data type
@@ -92,13 +92,14 @@ class MyDataset(Dataset):
 if __name__ == "__main__":
     # for testing & debugging
     # dataset = MyDataset(dataset='ciao')
-    dataset = MyDataset(dataset='epinions')
+    dataset = MyDataset(dataset='ciao')
+    print(dataset[0])
     loader = DataLoader(dataset, batch_size=128, shuffle=True)
     for data in loader:
         # print(data[0].shape)
         # print(data[1].shape)
         # print(data[2].shape)
         # print(data[3].shape)
-        print(data['user_seq'].shape)
-        print(data['user_seq'][0].shape)
+        # print(data['user_seq'].shape)
+        # print(data['user_seq'][0].shape)
         quit()

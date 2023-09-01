@@ -17,6 +17,8 @@ import scipy.sparse as sp
 from ast import literal_eval    # convert str type list to original type
 from scipy.io import loadmat
 from tqdm.auto import tqdm
+from collections import defaultdict
+from sklearn.utils import shuffle
 
 # arg(or else) passing to DATASET later
 # DATASET = 'ciao'
@@ -24,7 +26,7 @@ from tqdm.auto import tqdm
 # data_path = os.getcwd() + '/dataset/' + DATASET
 
 
-def mat_to_csv(data_path:str):
+def mat_to_csv(data_path:str, test=0.1):
     """
     Convert .mat file into .csv file for using pandas.
         Ciao: rating.mat, trustnetwork.mat
@@ -61,8 +63,19 @@ def mat_to_csv(data_path:str):
     trust_file = trust_file['trustnetwork'].astype(np.int64)    
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
 
+    ### train test split
+    split_rating_df = shuffle(rating_df)
+    num_test = int(len(split_rating_df) * test)
+    rating_test_set = split_rating_df.iloc[:num_test]
+    rating_valid_set = split_rating_df.iloc[num_test:2 * num_test]
+    rating_train_set = split_rating_df.iloc[2 * num_test:]
+
     rating_df.to_csv(data_path + '/rating.csv', index=False)
     trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
+
+    rating_test_set.to_csv(data_path + '/rating_test.csv', index=False)
+    rating_valid_set.to_csv(data_path + '/rating_valid.csv', index=False)
+    rating_train_set.to_csv(data_path + '/rating_train.csv', index=False)
 
 
 def generate_user_degree_table(data_path:str) -> pd.DataFrame:
@@ -119,7 +132,7 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     return degree_df
 
 
-def generate_interacted_items_table(data_path:str, item_length=4) -> pd.DataFrame:
+def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False) -> pd.DataFrame:
     """
     Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
 
@@ -127,15 +140,21 @@ def generate_interacted_items_table(data_path:str, item_length=4) -> pd.DataFram
         data_path: path to dataset
         item_length: number of interacted items to fetch
     """
+    
+
+    rating_file = data_path + '/rating.csv'
+    dataframe = pd.read_csv(rating_file, index_col=[])
+    if all==True:
+        user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
+        user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
+        return user_item_dataframe
+    
     # processed file check
     if f'user_item_interaction_item_length_{item_length}.csv' in os.listdir(data_path):
         print(f"Processed 'user_item_interaction_length_{item_length}.csv' file already exists...")
         user_item_dataframe = pd.read_csv(data_path + f'/user_item_interaction_item_length_{item_length}.csv', index_col=[])
         return user_item_dataframe
-
-    rating_file = data_path + '/rating.csv'
-    dataframe = pd.read_csv(rating_file, index_col=[])
-
+    
     # For each user, find their interacted items and given rating.
 
     ## This will make dict with list of list: {user_id: [[product_id, ...], [rating, ...]], user_id: [[product_id, ...], [rating, ...]], ...} 
@@ -465,10 +484,22 @@ if __name__ == "__main__":
     # df['num_items'].plot(kind='box')
     # plt.show()
     
-    data_path = os.getcwd() + '/dataset/' + 'ciao'
+    data_path = os.getcwd() + '/dataset/' + 'ciao' 
+    user_item_table = generate_interacted_items_table(data_path, all=True)
+    
+
+    # user_item_table['product_id'] = user_item_table.apply(lambda x: literal_eval(x['product_id']), axis=1)
+    # user_item_table['rating'] = user_item_table.apply(lambda x: literal_eval(x['rating']), axis=1)
+    print(user_item_table['product_id'])
+    # print(user_item_table['product_id'].to_dict())
+    dd = defaultdict(list)
+    # print(user_item_table.to_dict(into=dd)['product_id'])
+    # print(type(user_item_table.to_dict()['rating'][3440]))
+    # mat_to_csv(data_path)
+    # generate_social_random_walk_sequence(data_path=data_path, all_node=True, walk_length=20, save_flag=True)
     # walk_seq = generate_social_random_walk_sequence(data_path=data_path, num_nodes=5, walk_length=10, save_flag=False, all_node=False, seed=True)
     # print(walk_seq)
     # a = find_social_user_interacted_items(data_path, walk_list=walk_seq, item_length=4)
-    df = generate_interacted_items_table(data_path, 4)
+    # df = generate_interacted_items_table(data_path, 4)
     # print(df)
     quit()
