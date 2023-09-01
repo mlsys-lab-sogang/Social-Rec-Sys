@@ -1,9 +1,9 @@
 """
 Encoding & Embedding modules
 """
+import numpy as np
 import torch
 import torch.nn as nn
-
 
 class SocialNodeEncoder(nn.Module):
     """
@@ -47,3 +47,37 @@ class SocialNodeEncoder(nn.Module):
         # print(input_embedding.shape)
 
         return input_embedding
+
+class SpatialEncoder(nn.Module):
+    """
+    Embed SPD(shortest path distance) information to dense representation, using pre-computed SPD matrix.
+    (similar to spatial encoding)
+        data_path: path to dataset
+        spd_file: pre-computed SPD file (.npy)
+    """
+    def __init__(self, data_path, spd_file, num_heads):
+        super(SpatialEncoder, self).__init__()
+
+        spd_table = data_path + spd_file
+        self.spatial_pos_table = torch.from_numpy(np.load(spd_table)).long()
+        
+        num_nodes = self.spatial_pos_table.size()[0]
+        
+        self.spatial_pos_encoder = nn.Embedding(num_nodes + 1, num_heads, padding_idx=0)
+
+    def forward(self, batched_data):
+        """
+        batched_data: batched data from DataLoader
+        """
+
+        # TODO: sequence에 있는 사용자들의 거리 위치를 가져와야함.
+        x = batched_data["user_seq"]
+
+
+if __name__ == "__main__":
+    import os
+
+    data_path = os.getcwd() + '/dataset/ciao/'
+    spd_file = 'shortest_path_result.npy'
+    a = SpatialEncoder(data_path=data_path, spd_file=spd_file, num_heads=2)
+    print(a)
