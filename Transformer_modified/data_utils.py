@@ -63,14 +63,13 @@ def mat_to_csv(data_path:str, test=0.1):
     trust_file = trust_file['trustnetwork'].astype(np.int64)    
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
 
-    ### train test split
+    ### train test split TODO: Change equation for split later on
     split_rating_df = shuffle(rating_df)
     num_test = int(len(split_rating_df) * test)
     rating_test_set = split_rating_df.iloc[:num_test]
     rating_valid_set = split_rating_df.iloc[num_test:2 * num_test]
     rating_train_set = split_rating_df.iloc[2 * num_test:]
-    # print(rating_test_set)
-    # quit()
+
 
     rating_df.to_csv(data_path + '/rating.csv', index=False)
     trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
@@ -145,13 +144,11 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
     
     if split=='all':
         rating_file = data_path + '/rating.csv'
-        print('all')
     else:
         rating_file = data_path + f'/rating_{split}.csv'
-        print(split)
         
     dataframe = pd.read_csv(rating_file, index_col=[])
-    print(dataframe.size)
+
     if all==True:
         user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
         user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
