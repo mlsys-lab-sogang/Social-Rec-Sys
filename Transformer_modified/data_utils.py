@@ -38,9 +38,9 @@ def mat_to_csv(data_path:str, test=0.1):
     dataset_name = data_path.split('/')[-1]
 
     # processed file check
-    if ('rating.csv' or 'trustnetwork.csv') in os.listdir(data_path):
-        print("Processed files already exists...")
-        return 0
+    # if ('rating.csv' or 'trustnetwork.csv') in os.listdir(data_path):
+    #     print("Processed files already exists...")
+    #     return 0
     
     # load .mat file & convert to dataframe
     if dataset_name == 'ciao':
@@ -69,6 +69,8 @@ def mat_to_csv(data_path:str, test=0.1):
     rating_test_set = split_rating_df.iloc[:num_test]
     rating_valid_set = split_rating_df.iloc[num_test:2 * num_test]
     rating_train_set = split_rating_df.iloc[2 * num_test:]
+    # print(rating_test_set)
+    # quit()
 
     rating_df.to_csv(data_path + '/rating.csv', index=False)
     trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
@@ -132,7 +134,7 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     return degree_df
 
 
-def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False) -> pd.DataFrame:
+def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False, split:str='all') -> pd.DataFrame:
     """
     Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
 
@@ -141,9 +143,15 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
         item_length: number of interacted items to fetch
     """
     
-
-    rating_file = data_path + '/rating.csv'
+    if split=='all':
+        rating_file = data_path + '/rating.csv'
+        print('all')
+    else:
+        rating_file = data_path + f'/rating_{split}.csv'
+        print(split)
+        
     dataframe = pd.read_csv(rating_file, index_col=[])
+    print(dataframe.size)
     if all==True:
         user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
         user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
@@ -375,14 +383,17 @@ if __name__ == "__main__":
     ##### For checking & debugging (will remove later)
     
     data_path = os.getcwd() + '/dataset/' + 'ciao' 
+    # mat_to_csv(data_path)
     user_item_table = generate_interacted_items_table(data_path, all=True)
+    
+    # user_item_table = generate_interacted_items_table(data_path, all=True, split='train')
     
 
     # user_item_table['product_id'] = user_item_table.apply(lambda x: literal_eval(x['product_id']), axis=1)
     # user_item_table['rating'] = user_item_table.apply(lambda x: literal_eval(x['rating']), axis=1)
     print(user_item_table['product_id'])
     # print(user_item_table['product_id'].to_dict())
-    dd = defaultdict(list)
+    # dd = defaultdict(list)
     # print(user_item_table.to_dict(into=dd)['product_id'])
     # print(type(user_item_table.to_dict()['rating'][3440]))
     # mat_to_csv(data_path)
