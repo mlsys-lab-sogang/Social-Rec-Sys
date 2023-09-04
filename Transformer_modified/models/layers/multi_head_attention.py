@@ -18,7 +18,7 @@ class ScaledDotProductAttention(nn.Module):
 
         # 1. Compute similarity by Q.dot(K^T)
             # d_tensor = d_model // num_head
-            # (batch_size, num_heads, seq_length, d_tensor) ==> (batch_size, num_heads, d_tensor, seq_length)
+            # [batch_size, num_heads, seq_length, d_tensor] ==> [batch_size, num_heads, d_tensor, seq_length]
         K_T = K.transpose(2, 3)
         score = torch.matmul(Q, K_T) / math.sqrt(d_tensor)
             # ==> (batch_size, num_heads, seq_length, seq_length)
@@ -29,14 +29,15 @@ class ScaledDotProductAttention(nn.Module):
 
         # 3. Apply attention bias (spatial encoding)
         # TODO: add attention bias before softmax
-        # if attn_bias is not None:
-            # score += 
+            # [batch_size, num_head, seq_length, seq_length]
+        if attn_bias is not None:
+            score += attn_bias
 
         # 3. Pass score to softmax for making [0, 1] range.
         score = torch.softmax(score, dim=-1)
 
         # 4. Dot product with V
-            # (batch_size, num_heads, seq_length, d_tensor)
+            # [batch_size, num_heads, seq_length, d_tensor]
         V = torch.matmul(score, V)
 
         return V, score
@@ -58,7 +59,7 @@ class MultiHeadAttention(nn.Module):
 
         self.W_concat = nn.Linear(d_model, d_model)
 
-    def forward(self, Q, K, V, mask=None):
+    def forward(self, Q, K, V, mask=None, attn_bias=None):
         # 1. Dot produt with weight matrices
             # (batch_size, seq_length, d_model)
         Q, K, V = self.W_Q(Q), self.W_K(K), self.W_V(V)
@@ -69,7 +70,7 @@ class MultiHeadAttention(nn.Module):
         Q, K, V = self.split(Q), self.split(K), self.split(V)
 
         # 3. Perform scaled-dot product attention
-        out, attn = self.attention(Q, K, V, mask=mask)
+        out, attn = self.attention(Q, K, V, mask, attn_bias)
 
         # 4. Concat and pass to linear layer
             # (batch_size, seq_length, d_model)
