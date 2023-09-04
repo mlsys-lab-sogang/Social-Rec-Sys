@@ -44,7 +44,6 @@ class SocialNodeEncoder(nn.Module):
         # print(degree_embedding.shape)
 
         input_embedding = user_embedding + degree_embedding
-        # print(input_embedding.shape)
 
         return input_embedding
 
@@ -58,11 +57,13 @@ class SpatialEncoder(nn.Module):
     def __init__(self, data_path, spd_file, num_heads):
         super(SpatialEncoder, self).__init__()
 
-        spd_table = data_path + spd_file
-        self.spatial_pos_table = torch.from_numpy(np.load(spd_table)).long()
+        spd_table = data_path + '/' + spd_file
+        self.spatial_pos_table = torch.from_numpy(np.load(spd_table)).long()    # (num_nodes, num_nodes) -> (7317, 7317)
         
         num_nodes = self.spatial_pos_table.size()[0]
         
+        # lookup table은 spatial-pos table에 있는 거리 값을 dense vector representation으로 변환
+            # 현재 spatial_pos_table에 있는 값중 max값은 unreachable 거리이고, 이는 num_nodes + 1.
         self.spatial_pos_encoder = nn.Embedding(num_nodes + 1, num_heads, padding_idx=0)
 
     def forward(self, batched_data):
@@ -70,14 +71,30 @@ class SpatialEncoder(nn.Module):
         batched_data: batched data from DataLoader
         """
 
-        # TODO: sequence에 있는 사용자들의 거리 위치를 가져와야함.
-        x = batched_data["user_seq"]
+        # [batch_size, seq_length]
+        user_seq = batched_data["user_seq"]
+                
+        # 각 batch마다 들어있는 user sequence에 대한 spd matrix를 생성
+            # 각 batch마다 들어있는 형태는 [1, seq_length]
+        output_list = []
+        for seq in user_seq:
+            spd_matrix = self.spatial_pos_table[seq.squeeze(), :][:, seq.squeeze()]
+            output_list.append(spd_matrix)
+        
+        # 생성한 결과를 batch_size만큼 stack
+            # [seq_length, seq_length] * batch_size ==> [batch_size, seq_length, seq_length]
+        total_output = torch.stack(output_list, dim=0)
 
+        # 최종적으로 embedding을 거쳐서 attn_bias 생성
+            # [batch_size, seq_length, seq_length] ==> [batch_size, seq_length, seq_length, num_heads]
+        attn_bias = self.spatial_pos_encoder(total_output)
+        
+        return attn_bias
 
-if __name__ == "__main__":
-    import os
+# if __name__ == "__main__":
+#     import os
 
-    data_path = os.getcwd() + '/dataset/ciao/'
-    spd_file = 'shortest_path_result.npy'
-    a = SpatialEncoder(data_path=data_path, spd_file=spd_file, num_heads=2)
-    print(a)
+#     data_path = os.getcwd() + '/dataset/ciao'
+#     spd_file = 'shortest_path_result.npy'
+#     a = SpatialEncoder(data_path=data_path, spd_file=spd_file, num_heads=2)
+#     print(a)
