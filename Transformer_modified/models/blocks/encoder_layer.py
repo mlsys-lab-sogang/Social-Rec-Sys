@@ -19,10 +19,10 @@ class EncoderLayer(nn.Module):
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout2 = nn.Dropout(p=dropout)
     
-    def forward(self, x, src_mask):
+    def forward(self, x, src_mask, attn_bias):
         # 1. Perform self attention
         residual = x
-        x = self.attention(Q=x, K=x, V=x, mask=src_mask)
+        x = self.attention(Q=x, K=x, V=x, mask=src_mask, attn_bias=attn_bias)
 
         # 2. Add & Norm
         x = self.dropout1(x)
