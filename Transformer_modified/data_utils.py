@@ -84,10 +84,10 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
     Generate & return degree table from social graph(trustnetwork).
     """
     # processed file check
-    if 'degree_table_social.csv' in os.listdir(data_path):
-        print("Processed 'degree_table_social.csv' file already exists...")
-        degree_df = pd.read_csv(data_path + '/degree_table_social.csv', index_col=[])
-        return degree_df
+    # if 'degree_table_social.csv' in os.listdir(data_path):
+    #     print("Processed 'degree_table_social.csv' file already exists...")
+    #     degree_df = pd.read_csv(data_path + '/degree_table_social.csv', index_col=[])
+    #     return degree_df
 
     # user-user network
         # Ciao: 7317 users
@@ -100,6 +100,8 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
     degrees = {node: val for (node, val) in social_graph.degree()}
     degree_df = pd.DataFrame(degrees.items(), columns=['user_id', 'degree'])
 
+    degree_df.sort_values(by='user_id', ascending=True, inplace=True)
+
     degree_df.to_csv(data_path + '/degree_table_social.csv', index=False)
 
     return degree_df
@@ -110,10 +112,10 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     Generate & return degree table from user-item graph(rating matrix).
     """
     # processed file check
-    if 'degree_table_item.csv' in os.listdir(data_path):
-        print(f"Processed 'degree_table_item.csv' file already exists...")
-        degree_df = pd.read_csv(data_path + '/degree_table_item.csv', index_col=[])
-        return degree_df
+    # if 'degree_table_item.csv' in os.listdir(data_path):
+    #     print(f"Processed 'degree_table_item.csv' file already exists...")
+    #     degree_df = pd.read_csv(data_path + '/degree_table_item.csv', index_col=[])
+    #     return degree_df
     
     # user-item network
         # Ciao: 7375 user // 105114 items
@@ -381,14 +383,14 @@ if __name__ == "__main__":
     
     data_path = os.getcwd() + '/dataset/' + 'ciao' 
     # mat_to_csv(data_path)
-    user_item_table = generate_interacted_items_table(data_path, all=True)
+    # user_item_table = generate_interacted_items_table(data_path, all=True)
     
     # user_item_table = generate_interacted_items_table(data_path, all=True, split='train')
     
 
     # user_item_table['product_id'] = user_item_table.apply(lambda x: literal_eval(x['product_id']), axis=1)
     # user_item_table['rating'] = user_item_table.apply(lambda x: literal_eval(x['rating']), axis=1)
-    print(user_item_table['product_id'])
+    # print(user_item_table['product_id'])
     # print(user_item_table['product_id'].to_dict())
     # dd = defaultdict(list)
     # print(user_item_table.to_dict(into=dd)['product_id'])
