@@ -48,6 +48,13 @@ class MyDataset(Dataset):
             item_list.append(self.item_sequences[index])
             rating_list.append(self.item_rating[index])
 
+        #########################Set으로 sequence의 모든 아이템 받기###############################
+        item_set, rating_set = set(), set()
+        for index in item_indexer:
+            item_set.update(self.item_sequences[index])
+            rating_set.update(self.item_rating[index])
+        ######################################################################################
+
         item_seq = torch.stack(item_list, 0)
         item_rating = torch.stack(rating_list, 0)
 
@@ -63,6 +70,10 @@ class MyDataset(Dataset):
         user_path = '/social_user_7317_rw_length_20_fixed_seed_False.csv'
         # user_path = '/social_user_18098_rw_length_20_fixed_seed_False.csv'
         item_df = utils.generate_interacted_items_table(data_path=self.data_path, item_length=1)
+
+        #########################Set으로 sequence의 모든 아이템 받기###############################
+        # item_df = utils.generate_interacted_items_table(data_path=self.data_path, all=True)
+        ######################################################################################
 
         # load dataset & convert data type
             # values are saved as 'str', convert into original type, 'list'.
