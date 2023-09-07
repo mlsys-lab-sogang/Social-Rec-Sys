@@ -93,7 +93,7 @@ def generate_social_dataset(data_path:str, save_flag:bool = False, split:str='tr
     trust_dataframe = pd.read_csv(data_path + '/trustnetwork.csv', index_col=[])
     social_graph = trust_dataframe[(trust_dataframe['user_id_1'].isin(users)) & (trust_dataframe['user_id_2'].isin(users))]
     if save_flag:
-        social_graph.to_csv(data_path + f'/trustnetwork_{split}')
+        social_graph.to_csv(data_path + f'/trustnetwork_{split}.csv')
     return social_graph
 
 def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame:
