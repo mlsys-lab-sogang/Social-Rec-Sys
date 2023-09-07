@@ -64,7 +64,8 @@ def mat_to_csv(data_path:str, test=0.1):
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
 
     ### train test split TODO: Change equation for split later on
-    split_rating_df = shuffle(rating_df)
+    # TODO: make random_state a seed varaiable
+    split_rating_df = shuffle(rating_df, random_state=42)
     num_test = int(len(split_rating_df) * test)
     rating_test_set = split_rating_df.iloc[:num_test]
     rating_valid_set = split_rating_df.iloc[num_test:2 * num_test]
@@ -399,8 +400,8 @@ if __name__ == "__main__":
     
     data_path = os.getcwd() + '/dataset/' + 'ciao' 
     rating_file = data_path + '/rating_test.csv'
-    generate_social_dataset(data_path, save_flag=True, split='train')
-    # mat_to_csv(data_path)
+    # generate_social_dataset(data_path, save_flag=True, split='train')
+    mat_to_csv(data_path)
     # user_item_table = generate_interacted_items_table(data_path, all=True)
     
     # user_item_table = generate_interacted_items_table(data_path, all=True, split='train')
