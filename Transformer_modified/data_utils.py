@@ -79,7 +79,23 @@ def mat_to_csv(data_path:str, test=0.1):
     rating_train_set.to_csv(data_path + '/rating_train.csv', index=False)
 
 
-def generate_user_degree_table(data_path:str) -> pd.DataFrame:
+def generate_social_dataset(data_path:str, save_flag:bool = False, split:str='train'):
+    """
+    Generate social graph from train/test/validation dataset
+
+    Args:
+        data_path: path to dataset
+        rating_file: path to rating file
+    """
+    rating_dataframe = pd.read_csv(f'{data_path}/rating_{split}.csv' , index_col=[])
+    users = set(pd.unique(rating_dataframe['user_id']))
+    trust_dataframe = pd.read_csv(data_path + '/trustnetwork.csv', index_col=[])
+    social_graph = trust_dataframe[(trust_dataframe['user_id_1'].isin(users)) & (trust_dataframe['user_id_2'].isin(users))]
+    if save_flag:
+        social_graph.to_csv(data_path + f'/trustnetwork_{split}')
+    return social_graph
+
+def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame:
     """
     Generate & return degree table from social graph(trustnetwork).
     """
@@ -92,7 +108,7 @@ def generate_user_degree_table(data_path:str) -> pd.DataFrame:
     # user-user network
         # Ciao: 7317 users
         # Epinions: 18098 users
-    trust_file = data_path + '/trustnetwork.csv'
+    trust_file = data_path + f'/trustnetwork_{split}.csv'
     dataframe = pd.read_csv(trust_file, index_col=[])
 
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
@@ -196,7 +212,7 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
     return user_item_dataframe
 
 
-def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, seed=False) -> list:
+def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, seed=False, split:str='train') -> list:
     """
     Generate random walk sequence from social graph(trustnetwork).
     Return:
@@ -214,7 +230,7 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
         all_node: get all node's random walk sequence (default=False)
         seed: random seed, True or False (default=False)
     """
-    trust_file = data_path + '/trustnetwork.csv'
+    trust_file = data_path + f'/trustnetwork_{split}.csv'
     dataframe = pd.read_csv(trust_file, index_col=[])
 
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
@@ -382,6 +398,8 @@ if __name__ == "__main__":
     ##### For checking & debugging (will remove later)
     
     data_path = os.getcwd() + '/dataset/' + 'ciao' 
+    rating_file = data_path + '/rating_test.csv'
+    generate_social_dataset(data_path, save_flag=True, split='test')
     # mat_to_csv(data_path)
     # user_item_table = generate_interacted_items_table(data_path, all=True)
     
