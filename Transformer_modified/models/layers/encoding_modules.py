@@ -9,7 +9,7 @@ class SocialNodeEncoder(nn.Module):
     """
     Embed node id to dense representation & Encode each node's degree information.
     (similar to positional encoding)
-        num_nodes: number of nodes(users) in entire social graph
+        num_nodes: number of all nodes(users) in entire social graph
         max_degree: max degree in entire social graph
         d_model: embedding size
     """
@@ -17,11 +17,11 @@ class SocialNodeEncoder(nn.Module):
         super(SocialNodeEncoder, self).__init__()
 
         # node id embedding table -> similar to word embedding table.
-            # table size: (num_user_total, embed_dim)
+            # table size: [num_user_total, embed_dim]
         self.node_encoder = nn.Embedding(num_nodes, d_model, padding_idx=0)
 
         # Degree embedding table -> will be index by input's degree information.
-            # table size: (max_degree, embed_dim)
+            # table size: [max_degree, embed_dim]
         self.degree_encoder = nn.Embedding(max_degree, d_model, padding_idx=0)
     
     def forward(self, batched_data):
@@ -90,6 +90,50 @@ class SpatialEncoder(nn.Module):
         attn_bias = self.spatial_pos_encoder(total_output)
         
         return attn_bias
+
+class ItemNodeEncoder(nn.Module):
+    """
+    Embed node id to dense representation & Encode each node's degree information.
+    (similar to positional encoding)
+        num_nodes: number of all nodes(items) in entire user-item graph
+            => max id value (if actual num_node is 100, but max id value is 120, num_nodes will be 120.)
+        max_degree: max degree of items in entire user-item graph
+        d_model: embedding size
+    """
+    def __init__(self, num_nodes, max_degree, d_model):
+        super(ItemNodeEncoder, self).__init__()
+
+        # node id embedding table -> similar to word embedding table.
+            # table size: [num_item_total, embed_dim]
+        self.node_encoder = nn.Embedding(num_nodes, d_model, padding_idx=0)
+
+        # Degree embedding table -> will be index by input's degree information
+            # table size: [max_degree, embed_dim]
+        self.degree_encoder = nn.Embedding(max_degree, d_model, padding_idx=0)
+    
+    def forward(self, batched_data):
+        """
+        batched_data: batched data from DataLoader
+        """
+        # TODO: Dataset 에서 item_degree 정보도 batch data에 함께 담아주도록 수정 & item은 [batch_size, seq_length, interacted_item] 이었는데, 이를 [batch_size, seq_length, interacted_item*seq_length]
+        # 즉, 시퀀스마다 고정된 수를 보는게 아니라 전체를 1개로 flatten [seq_length*interacted_item] 해서 전달
+        x, degree = (
+            batched_data['item_seq'],
+            batched_data['item_degree']
+        )
+
+        # Generate item_id embedding vector
+        item_embedding = self.node_encoder(x)
+        # print(item_embedding.shape)
+
+        # Add degree embedding vector to item_id embedding vector
+        degree_embedding = self.degree_encoder(degree)
+        # print(degree_embedding.shape)
+
+        input_embedding = item_embedding + degree_embedding
+
+        return input_embedding
+
 
 # if __name__ == "__main__":
 #     import os
