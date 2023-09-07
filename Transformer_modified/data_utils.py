@@ -399,7 +399,7 @@ if __name__ == "__main__":
     
     data_path = os.getcwd() + '/dataset/' + 'ciao' 
     rating_file = data_path + '/rating_test.csv'
-    generate_social_dataset(data_path, save_flag=True, split='test')
+    generate_social_dataset(data_path, save_flag=True, split='train')
     # mat_to_csv(data_path)
     # user_item_table = generate_interacted_items_table(data_path, all=True)
     
