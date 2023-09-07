@@ -34,7 +34,10 @@ def find_shortest_path_distance(data_path):
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
     social_graph_adj = nx.to_numpy_array(social_graph, dtype=np.int64)
 
+    print("Start SPD algorithm...")
+    start_time = time.time()
     shortest_path_result, path = algos.floyd_warshall(social_graph_adj)
+    print(f"Algorithm finished, time: {time.time() - start_time:.4f}s")     # ciao: 221.0372 s // epinions: 3134.4668s
 
     # Ciao: (7317, 7317) with size 428.3 MB
     # Epinions: (18098, 18098) with size 2.6 GB
@@ -50,8 +53,8 @@ if __name__ == "__main__":
     data_path = os.getcwd() + '/dataset/' + 'epinions'
 
     array = find_shortest_path_distance(data_path)
-    print(array.shape)
-    print(np.max(array))
-    print(np.where(array == np.max(array)))
+    # print(array.shape)
+    # print(np.max(array))
+    # print(np.where(array == np.max(array)))
     # print(array[0][7020])
     pass
