@@ -167,10 +167,21 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
         rating_file = data_path + f'/rating_{split}.csv'
         
     dataframe = pd.read_csv(rating_file, index_col=[])
+    degree_table = generate_item_degree_table(data_path=data_path)
+    degree_table = dict(zip(degree_table['product_id'], degree_table['degree']))    # for id mapping.
 
     if all==True:
         user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
+        user_item_dataframe['product_degree'] = user_item_dataframe['product_id'].apply(lambda x: [degree_table[id] for id in x])
+
+        # This is for indexing 0, where random walk sequence has padded with 0.
+            # minimum number of interacted item is 4, so pad it to 4.
+        empty_data = [0, [0 for _ in range(4)], [0 for _ in range(4)], [0 for _ in range(4)]]
+        user_item_dataframe.loc[-1] = empty_data
+        user_item_dataframe.index = user_item_dataframe.index + 1
+        user_item_dataframe.sort_index(inplace=True)
         user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
+
         return user_item_dataframe
     
     # processed file check
@@ -180,19 +191,8 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
         return user_item_dataframe
     
     # For each user, find their interacted items and given rating.
-
-    ## This will make dict with list of list: {user_id: [[product_id, ...], [rating, ...]], user_id: [[product_id, ...], [rating, ...]], ...} 
-    # user_dict = {}
-    # for _, data in dataframe.iterrows():
-    #     if data['user_id'] not in user_dict:
-    #         user_dict[data['user_id']] = [[], []]
-    #     user_dict[data['user_id']][0].append(data['product_id'])
-    #     user_dict[data['user_id']][1].append(data['rating'])
-
-    ## This will make dict of dict: {user_id: {product_id:[...], rating:[...]}, user_id:{product_id:[...], rating:[...]}, ...}
+        ## This will make dict of dict: {user_id: {product_id:[...], rating:[...]}, user_id:{product_id:[...], rating:[...]}, ...}
     user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
-    # user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
-    # user_item_dataframe = user_item_dataframe.set_index('user_id').to_dict(orient='index')
 
     # Sample fixed number of interacted items.
         # TODO: pad with 0 for 'len(product_id) < item_length'
@@ -202,8 +202,11 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
     user_item_dataframe['rating'] = user_item_dataframe.apply(lambda x: [x['rating'][i] for i in x['indices']], axis=1)
     user_item_dataframe.drop(columns=['indices'], inplace=True)
 
+    # Fetch item's degree information from degree table.
+    user_item_dataframe['product_degree'] = user_item_dataframe['product_id'].apply(lambda x: [degree_table[id] for id in x])
+
     # This is for indexing 0, where random walk sequence has padded with 0.
-    empty_data = [0, [0 for _ in range(item_length)], [0 for _ in range(item_length)]]
+    empty_data = [0, [0 for _ in range(item_length)], [0 for _ in range(item_length)], [0 for _ in range(item_length)]]
     user_item_dataframe.loc[-1] = empty_data
     user_item_dataframe.index = user_item_dataframe.index + 1
     user_item_dataframe.sort_index(inplace=True)
