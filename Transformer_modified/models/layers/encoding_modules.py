@@ -17,12 +17,14 @@ class SocialNodeEncoder(nn.Module):
         super(SocialNodeEncoder, self).__init__()
 
         # node id embedding table -> similar to word embedding table.
-            # table size: [num_user_total, embed_dim]
-        self.node_encoder = nn.Embedding(num_nodes, d_model, padding_idx=0)
+            # table size: [num_user_total + 1, embed_dim]
+            # (id == index + 1)
+        self.node_encoder = nn.Embedding(num_nodes + 1, d_model, padding_idx=0)
 
         # Degree embedding table -> will be index by input's degree information.
-            # table size: [max_degree, embed_dim]
-        self.degree_encoder = nn.Embedding(max_degree, d_model, padding_idx=0)
+            # table size: [max_degree + 1, embed_dim]
+            # (id == index + 1)
+        self.degree_encoder = nn.Embedding(max_degree + 1, d_model, padding_idx=0)
     
     def forward(self, batched_data):
         """
@@ -34,6 +36,8 @@ class SocialNodeEncoder(nn.Module):
             batched_data["user_seq"],
             batched_data["user_degree"]
         )
+        print(f"Input seq min: {torch.min(x)}")
+        print(f"Input seq max: {torch.max(x)}")
 
         # Generate user_id embedding vector
         user_embedding = self.node_encoder(x)
@@ -113,11 +117,11 @@ class ItemNodeEncoder(nn.Module):
 
         # node id embedding table -> similar to word embedding table.
             # table size: [num_item_total, embed_dim]
-        self.node_encoder = nn.Embedding(num_nodes, d_model, padding_idx=0)
+        self.node_encoder = nn.Embedding(num_nodes + 1, d_model, padding_idx=0)
 
         # Degree embedding table -> will be index by input's degree information
             # table size: [max_degree, embed_dim]
-        self.degree_encoder = nn.Embedding(max_degree, d_model, padding_idx=0)
+        self.degree_encoder = nn.Embedding(max_degree + 1, d_model, padding_idx=0)
     
     def forward(self, batched_data):
         """
@@ -141,6 +145,26 @@ class ItemNodeEncoder(nn.Module):
         input_embedding = item_embedding + degree_embedding
 
         return input_embedding
+    
+class RatingEncoder(nn.Module):
+    """
+    Encoder item's rating information to dense representation, using `batched_data['rating']`.
+    """
+    def __init__(self):
+        super(RatingEncoder, self).__init__()
+
+    def forward(self, batched_data):
+        """
+        batched_data: batched data from DataLoader
+        """
+
+        item_seq, item_rating = (
+            batched_data['item_seq'],
+            batched_data['rating']
+        )
+        # print(item_rating.shape)
+
+        return item_rating
 
 
 # if __name__ == "__main__":
