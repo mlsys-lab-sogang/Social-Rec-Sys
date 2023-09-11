@@ -5,6 +5,7 @@ import os
 import pickle
 import pyximport
 import time
+import torch
 
 import networkx as nx
 import numpy as np
@@ -48,13 +49,53 @@ def find_shortest_path_distance(data_path):
 
     return 0
 
+def generate_attn_pad_mask(seq_q, seq_k):
+    """
+    Generate attention mask
+        0-padded data -> apply mask
+        original data -> do not apply mask
+    """
+    # FIXME: (230911) 현재 mask 생성을 위한 입력으로 들어오는 shape은 다음과 같음.
+        # Enc에선 [batch_size, seq_length]
+        # Dec에선 [batch_size, seq_length, interacted_items]
+    # print(seq_q.size())
+    # print(seq_k.size())
+    batch_size, len_q = seq_q.size()
+    batch_size, len_k = seq_k.size()
+
+    # [batch_size, 1, len_k(=len_q)]
+    pad_attn_mask = seq_k.data.eq(0).unsqueeze(1)
+
+    # [batch_size, len_q, len_k]
+    return pad_attn_mask.expand(batch_size, len_q, len_k)
+
+def generate_attn_subsequent_mask(seq):
+    """
+    Generate decoder's mask
+    """
+    attn_shape = [seq.size(0), seq.size(1), seq.size(1)]
+    subsequent_mask = np.triu(np.ones(attn_shape), k=1)
+    subsequent_mask = torch.from_numpy(subsequent_mask).byte()
+
+    return subsequent_mask
+
+
 #### For testing
 if __name__ == "__main__":
-    data_path = os.getcwd() + '/dataset/' + 'epinions'
+    # data_path = os.getcwd() + '/dataset/' + 'epinions'
 
-    array = find_shortest_path_distance(data_path)
-    # print(array.shape)
-    # print(np.max(array))
-    # print(np.where(array == np.max(array)))
-    # print(array[0][7020])
-    pass
+    # array = find_shortest_path_distance(data_path)
+    # # print(array.shape)
+    # # print(np.max(array))
+    # # print(np.where(array == np.max(array)))
+    # # print(array[0][7020])
+    # pass
+
+    from dataset import MyDataset
+
+    dataset = MyDataset(dataset='ciao')
+    loader = torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
+    _, data = next(enumerate(loader))
+
+    print(data['user_seq'].shape)
+    print(data['item_seq'].shape)
