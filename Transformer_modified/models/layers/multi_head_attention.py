@@ -69,6 +69,11 @@ class MultiHeadAttention(nn.Module):
             # (batch_size, num_heads, seq_lengths, d_tensor)
         Q, K, V = self.split(Q), self.split(K), self.split(V)
 
+        # Apply mask for multi-head attention
+            # [batch_size, len_q, len_k] ==> [batch_size, num_heads, len_q, len_k]
+        if mask is not None:
+            mask = mask.unsqueeze(1).repeat(1, self.num_heads, 1, 1)
+
         # 3. Perform scaled-dot product attention
         out, attn = self.attention(Q, K, V, mask, attn_bias)
 
