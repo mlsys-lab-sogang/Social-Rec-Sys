@@ -1,7 +1,10 @@
+import torch
 import torch.nn as nn
 
 from models.blocks.decoder_layer import DecoderLayer
 from models.layers.encoding_modules import ItemNodeEncoder, RatingEncoder
+
+from model_utils import generate_attn_pad_mask, generate_attn_subsequent_mask
 
 class Decoder(nn.Module):
     """
@@ -52,10 +55,17 @@ class Decoder(nn.Module):
             last_layer = True
         )
     
-    def forward(self, batched_data, enc_output, trg_mask):
+    def forward(self, batched_data, enc_output, trg_mask, src_mask):
         # Input Encoding: Node it encoding + degree encoding
             # [batch_size, seq_length, item_length]
         x = self.input_embed(batched_data)
+
+        # Generate mask for padded data
+        dec_self_attn_mask = generate_attn_pad_mask(batched_data['item_seq'], batched_data['item_seq'])
+        dec_self_attn_subsequent_mask = generate_attn_subsequent_mask(batched_data['item_seq'])
+        trg_mask = torch.gt((dec_self_attn_mask + dec_self_attn_subsequent_mask), 0)
+        # print(f"Decoder trg_mask: {trg_mask.shape}")
+        # print(f"Decoder's src mask from Encoder: {src_mask.shape}")
 
         # Rating encoding
             # [batch_size, seq_length, seq_length, num_heads]
@@ -63,7 +73,7 @@ class Decoder(nn.Module):
 
         # Decoder layer forward pass (MHA, FFN)
         for layer in self.dec_layers:
-            x = layer(x, enc_output, trg_mask, attn_bias)
+            x = layer(x, enc_output, trg_mask, src_mask, attn_bias)
 
         # Pass to prediction layer
         output = self.pred_layer(x)
