@@ -34,7 +34,7 @@ class DecoderLayer(nn.Module):
             # prediction layer
             self.linear = nn.Linear(d_model, 1)
 
-    def forward(self, x, enc_output, trg_mask, attn_bias):
+    def forward(self, x, enc_output, trg_mask, src_mask, attn_bias):
         # 1. Perform self attention
         residual = x
         x = self.norm1(x)
@@ -51,7 +51,7 @@ class DecoderLayer(nn.Module):
             enc_output = self.norm2(enc_output)
             x = self.norm2(x)
 
-            x = self.cross_attention(Q=x, K=enc_output, V=enc_output, mask=trg_mask, attn_bias=attn_bias)
+            x = self.cross_attention(Q=x, K=enc_output, V=enc_output, mask=src_mask, attn_bias=attn_bias)
 
             # 4. Add & Norm
             x = self.dropout2(x)
