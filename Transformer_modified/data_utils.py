@@ -27,7 +27,7 @@ import torch
 # data_path = os.getcwd() + '/dataset/' + DATASET
 
 
-def mat_to_csv(data_path:str, test=0.1):
+def mat_to_csv(data_path:str, test=0.1, seed=42):
     """
     Convert .mat file into .csv file for using pandas.
         Ciao: rating.mat, trustnetwork.mat
@@ -35,6 +35,8 @@ def mat_to_csv(data_path:str, test=0.1):
     
     Args:
         data_path: Path to .mat file
+        test: percentage of test & valid dataset (default: 10%)
+        seed: random seed (default=42)
     """
     dataset_name = data_path.split('/')[-1]
 
@@ -64,14 +66,17 @@ def mat_to_csv(data_path:str, test=0.1):
     trust_file = trust_file['trustnetwork'].astype(np.int64)    
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
 
+    ### data filtering & id re-arrange ###
+    rating_df, trust_df = reset_and_filter_data(rating_df, trust_df)
+    ### data filtering & id re-arrange ###
+
     ### train test split TODO: Change equation for split later on
     # TODO: make random_state a seed varaiable
-    split_rating_df = shuffle(rating_df, random_state=42)
+    split_rating_df = shuffle(rating_df, random_state=seed)
     num_test = int(len(split_rating_df) * test)
     rating_test_set = split_rating_df.iloc[:num_test]
     rating_valid_set = split_rating_df.iloc[num_test:2 * num_test]
     rating_train_set = split_rating_df.iloc[2 * num_test:]
-
 
     rating_df.to_csv(data_path + '/rating.csv', index=False)
     trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
@@ -80,6 +85,53 @@ def mat_to_csv(data_path:str, test=0.1):
     rating_valid_set.to_csv(data_path + '/rating_valid.csv', index=False)
     rating_train_set.to_csv(data_path + '/rating_train.csv', index=False)
 
+def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.DataFrame:
+    """
+    Remove users not existing in social graph &
+    Re-arrange data ids to be increasing by 1.
+    
+    This function is used in `mat_to_csv()`. 
+    (`find_non_existing_user_in_social_graph()` is deprecated & merged into this function.)
+
+    Args:
+        rating_df: originally loaded `rating_df` (user-item interaction data)
+        trust_df: originaly loaded `trust_df` (social data)
+    """
+    social_network = nx.from_pandas_edgelist(trust_df, source='user_id_1', target='user_id_2')
+
+    social_ids = []
+    for user_id in social_network.nodes():
+        social_ids.append(user_id)
+    
+    user_item_ids = rating_df['user_id'].unique().tolist()
+
+    # Find users not exists in social data
+    non_users = np.setxor1d(user_item_ids, social_ids)
+
+    # Remove users not exists in social data
+        # Ciao: 7375 user (user-item) ==> 7317 user (social)
+        # Epinions: 22164 user (user-item) ==> 18098 user (social)
+    rating_df = rating_df[~rating_df['user_id'].isin(non_users.tolist())]
+
+    # Generate user id mapping table
+    mapping_table_user = {}
+    new_id_user = 1
+    for item in social_ids:
+        mapping_table_user[item] = new_id_user
+        new_id_user += 1
+    
+    # Generate item id mapping table
+    mapping_table_item = {}
+    new_id_item = 1
+    for item in rating_df['product_id'].unique().tolist():
+        mapping_table_item[item] = new_id_item
+        new_id_item += 1
+
+    # Replace user id & item id, using id mapping table.
+    rating_df = rating_df.replace({'user_id': mapping_table_user, 'product_id':mapping_table_item})
+    trust_df = trust_df.replace({'user_id_1': mapping_table_user, 'user_id_2': mapping_table_user})
+
+    return rating_df, trust_df
 
 def generate_social_dataset(data_path:str, save_flag:bool = False, split:str='train'):
     """
@@ -111,6 +163,7 @@ def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame
         # Ciao: 7317 users
         # Epinions: 18098 users
     trust_file = data_path + f'/trustnetwork_{split}.csv'
+    # trust_file = data_path + f'/trustnetwork.csv'
     dataframe = pd.read_csv(trust_file, index_col=[])
 
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
@@ -120,7 +173,8 @@ def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame
 
     degree_df.sort_values(by='user_id', ascending=True, inplace=True)
 
-    degree_df.to_csv(data_path + '/degree_table_social.csv', index=False)
+    degree_df.to_csv(data_path + f'/degree_table_social_{split}.csv', index=False)
+    # degree_df.to_csv(data_path + f'/degree_table_social.csv', index=False)
 
     return degree_df
 
@@ -136,8 +190,9 @@ def generate_item_degree_table(data_path:str, split:str='train') -> pd.DataFrame
     #     return degree_df
     
     # user-item network
-        # Ciao: 7375 user // 105114 items
+        # Ciao: 7375 user // 105114 items ==> 7317 user // 104975 items (after filtered)
     rating_file = data_path + f'/rating_{split}.csv'
+    # rating_file = data_path + f'/rating.csv'
     dataframe = pd.read_csv(rating_file, index_col=[])
 
     # Since using NetworkX to compute bipartite graph's degree is time-consuming(because graph is too sparse),
@@ -148,7 +203,8 @@ def generate_item_degree_table(data_path:str, split:str='train') -> pd.DataFrame
     degree_df.columns = ['product_id', 'degree']
     # degree_df.columns = ['user_id', 'degree']
 
-    degree_df.to_csv(data_path + '/degree_table_item.csv', index=False)
+    degree_df.to_csv(data_path + f'/degree_table_item_{split}.csv', index=False)
+    # degree_df.to_csv(data_path + f'/degree_table_item.csv', index=False)
 
     return degree_df
 
@@ -168,7 +224,7 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
         rating_file = data_path + f'/rating_{split}.csv'
         
     dataframe = pd.read_csv(rating_file, index_col=[])
-    degree_table = generate_item_degree_table(data_path=data_path)
+    degree_table = generate_item_degree_table(data_path=data_path, split=split)
     degree_table = dict(zip(degree_table['product_id'], degree_table['degree']))    # for id mapping.
 
     if all==True:
@@ -176,12 +232,13 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
         user_item_dataframe['product_degree'] = user_item_dataframe['product_id'].apply(lambda x: [degree_table[id] for id in x])
 
         # This is for indexing 0, where random walk sequence has padded with 0.
-            # minimum number of interacted item is 4, so pad it to 4.
+            # minimum number of interacted item is 4(before dataset splitting), so pad it to 4.
         empty_data = [0, [0 for _ in range(4)], [0 for _ in range(4)], [0 for _ in range(4)]]
         user_item_dataframe.loc[-1] = empty_data
         user_item_dataframe.index = user_item_dataframe.index + 1
         user_item_dataframe.sort_index(inplace=True)
-        user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
+        # user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
+        user_item_dataframe.to_csv(data_path + f'/user_item_interaction_{split}.csv', index=False)
 
         return user_item_dataframe
     
@@ -295,7 +352,7 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
 
     if save_flag:
         # save result to .csv
-        path = data_path + '/' + f"social_user_{num_nodes}_rw_length_{walk_length}_fixed_seed_{seed}.csv"
+        path = data_path + '/' + f"social_user_{num_nodes}_rw_length_{walk_length}_fixed_seed_{seed}_split_{split}.csv"
 
         keys, walks, degrees = [], [], []
         for paths in all_path_list:
@@ -355,49 +412,6 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
     )
 
     return selected_node
-
-def find_non_existing_user_in_social_graph(data_path, print_flag=False, save_flag=False):
-    """
-    There are some non-existing users in social network, while they exists in user-item network.
-        Ciao:
-            rating: 7,375 user
-            social: 7,317 user
-            => 58 users are missing in social network.
-        Epinions:
-            rating: 22,164 user
-            social: 18,098 user
-    """
-    rating = pd.read_csv(data_path + '/rating.csv', index_col=[])
-    social = pd.read_csv(data_path + '/trustnetwork.csv', index_col=[])
-
-    social_network = nx.from_pandas_edgelist(social, source='user_id_1', target='user_id_2')
-
-    rating_user = rating['user_id'].unique()
-    social_user = []
-    for node in social_network.nodes():
-        social_user.append(node)
-    
-    social_user = np.array(social_user)
-
-    # print(social_user.shape, rating_user.shape)
-    user_not_in_social_graph = np.setxor1d(rating_user, social_user)
-
-    if print_flag:
-        print(f"Users not exists (num: {len(user_not_in_social_graph)}): {user_not_in_social_graph.tolist()}")
-        
-        # get those user's interacted items
-        for user in user_not_in_social_graph:
-            interacted_items = rating['product_id'].loc[rating['user_id'] == user].values
-            print(f"user {user}: {len(interacted_items)}")
-
-    if save_flag:
-        # Save `rating.csv`, eliminating non-existing users.
-        rating = rating[~rating['user_id'].isin(user_not_in_social_graph.tolist())]
-        rating.to_csv(data_path + '/rating.csv', index=False)
-        return 0
-    else:
-        return user_not_in_social_graph.tolist()
-
 
 def generate_sequence_data(dataset):
     data_path = os.getcwd() + '/dataset/' + dataset
@@ -470,7 +484,6 @@ def generate_sequence_data(dataset):
     print(interacted_items_degree[:5])
     # print("set: ", interacted_items)
     return interacted_items
-
 
 
 if __name__ == "__main__":
