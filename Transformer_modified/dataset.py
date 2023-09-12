@@ -4,7 +4,7 @@ import pandas as pd
 from ast import literal_eval
 
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, generate_item_degree_table
 
 import data_utils as utils
 
@@ -30,6 +30,8 @@ class MyDataset(Dataset):
         self.item_sequences = torch.LongTensor(item_sequences)      # (num_user, item_length)
         self.item_rating = torch.LongTensor(item_rating)            # (num_user, item_length)
 
+        self.item_degree = generate_item_degree_table(data_path)
+
         # assert len(self.user_sequences)+1 == len(self.user_degree)+1 == len(self.item_sequences) == len(self.item_rating), (
         #     f"All data should have same length: {len(self.user_sequences)}, {len(self.user_degree)}, {len(self.item_sequences)}, {len(self.item_rating)}"
         # )
@@ -49,10 +51,11 @@ class MyDataset(Dataset):
             rating_list.append(self.item_rating[index])
 
         #########################Set으로 sequence의 모든 아이템 받기###############################
-        item_set, rating_set = set(), set()
-        for index in item_indexer:
-            item_set.update(self.item_sequences[index])
-            rating_set.update(self.item_rating[index])
+        # item_set, rating_set = set(), set()
+        # for index in item_indexer:
+        #     item_set.update(self.item_sequences[index])
+        #     rating_set.update(self.item_rating[index])
+        item_set = set(item_list)
         ######################################################################################
 
         item_seq = torch.stack(item_list, 0)

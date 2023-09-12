@@ -19,6 +19,7 @@ from scipy.io import loadmat
 from tqdm.auto import tqdm
 from collections import defaultdict
 from sklearn.utils import shuffle
+import torch
 
 # arg(or else) passing to DATASET later
 # DATASET = 'ciao'
@@ -124,7 +125,7 @@ def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame
     return degree_df
 
 
-def generate_item_degree_table(data_path:str) -> pd.DataFrame:
+def generate_item_degree_table(data_path:str, split:str='train') -> pd.DataFrame:
     """
     Generate & return degree table from user-item graph(rating matrix).
     """
@@ -136,7 +137,7 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     
     # user-item network
         # Ciao: 7375 user // 105114 items
-    rating_file = data_path + '/rating.csv'
+    rating_file = data_path + f'/rating_{split}.csv'
     dataframe = pd.read_csv(rating_file, index_col=[])
 
     # Since using NetworkX to compute bipartite graph's degree is time-consuming(because graph is too sparse),
@@ -152,7 +153,7 @@ def generate_item_degree_table(data_path:str) -> pd.DataFrame:
     return degree_df
 
 
-def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False, split:str='all') -> pd.DataFrame:
+def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False, split:str='train') -> pd.DataFrame:
     """
     Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
 
@@ -395,14 +396,93 @@ def find_non_existing_user_in_social_graph(data_path, print_flag=False, save_fla
         return user_not_in_social_graph.tolist()
 
 
+def generate_sequence_data(dataset):
+    data_path = os.getcwd() + '/dataset/' + dataset
+
+    # user_sequences, user_degree, item_sequences, item_rating = self.load_data()
+
+    user_path = '/social_user_7317_rw_length_20_fixed_seed_False.csv'
+    # user_path = '/social_user_18098_rw_length_20_fixed_seed_False.csv'
+    item_df = generate_interacted_items_table(data_path=data_path, item_length=4)
+
+    #########################Set으로 sequence의 모든 아이템 받기###############################
+    # item_df = utils.generate_interacted_items_table(data_path=self.data_path, all=True)
+    ######################################################################################
+
+    # load dataset & convert data type
+        # values are saved as 'str', convert into original type, 'list'.
+    user_df = pd.read_csv(data_path + user_path, index_col=[])
+    user_df['random_walk_seq'] = user_df.apply(lambda x: literal_eval(x['random_walk_seq']), axis=1)
+    user_df['degree'] = user_df.apply(lambda x: literal_eval(x['degree']), axis=1)
+
+    item_df['product_id'] = item_df.apply(lambda x: literal_eval(x['product_id']), axis=1)
+    item_df['rating'] = item_df.apply(lambda x: literal_eval(x['rating']), axis=1)
+    
+    # Since each row's element is list, convert it.
+        # `user_sequences` & `user_degree` shape: (num_user, walk_length)
+    user_sequences = user_df['random_walk_seq'].to_numpy(dtype=object)
+    user_sequences = np.array([np.array(x) for x in user_sequences])
+    user_degree = user_df['degree'].to_numpy(dtype=object)
+    user_degree = np.array([np.array(x) for x in user_degree])
+
+    # Since item_df's row element's type is 'list'(not 'str' like user_df), just convert it into ndarray.
+    item_sequences = item_df['product_id'].to_numpy(dtype=object)
+    item_sequences = np.array([np.array(x) for x in item_sequences])
+    item_rating = item_df['rating'].to_numpy(dtype=object)
+    item_rating = np.array([np.array(x) for x in item_rating])
+
+    # user_sequences = torch.LongTensor(user_sequences)      # (num_user, item_length)
+    # user_degree = torch.LongTensor(user_degree)            # (num_user, item_length)
+    # item_sequences = torch.LongTensor(item_sequences)      # (num_user, item_length)
+    # item_rating = torch.LongTensor(item_rating)            # (num_user, item_length)
+
+    item_degree = generate_item_degree_table(data_path)
+    print(item_degree)
+    item_degree_dict = dict(zip(item_degree['product_id'], item_degree['degree']))
+    print(len(item_degree_dict))
+
+    interacted_items = []
+    print("num seq = ", len(user_sequences))
+
+    for idx in range(len(user_sequences)):
+        user_seq = user_sequences[idx]
+        user_deg = user_degree[idx]
+
+        # since we need all user in random walk sequence's interacted items, fetch it with sequence value as index.
+        item_indexer = [int(x) for x in user_seq]#.numpy()]   # user_ids in user_seq
+        item_list, rating_list = [], []
+        item_set = set()
+        for index in item_indexer:
+            item_list.append(item_sequences[index])
+            rating_list.append(item_rating[index])
+            item_set.update(item_sequences[index])#.tolist())
+            # if idx<5:
+                # print(item_sequences[index], type(item_sequences[index]), len(item_sequences[index]))
+        interacted_items.append(list(item_set))
+        if idx<5:
+            print("len:", len(item_set), item_set)
+
+    interacted_items_degree = list(map(lambda x: [item_degree_dict[y] for y in x] , interacted_items))
+    print(interacted_items[:5])
+    print(interacted_items_degree[:5])
+    # print("set: ", interacted_items)
+    return interacted_items
+
+
+
 if __name__ == "__main__":
     ##### For checking & debugging (will remove later)
     
     data_path = os.getcwd() + '/dataset/' + 'ciao' 
     rating_file = data_path + '/rating_test.csv'
     # generate_social_dataset(data_path, save_flag=True, split='train')
-    mat_to_csv(data_path)
-    # user_item_table = generate_interacted_items_table(data_path, all=True)
+    # mat_to_csv(data_path)
+    # print(generate_interacted_items_table(data_path, all=True))
+    # print(generate_sequence_data('ciao')[0][0])
+    interacted_items = list(map(len, generate_sequence_data("ciao")))
+    print(max(interacted_items))
+    print(min(interacted_items))
+    # print(generate_sequence_data('ciao')[1])#[0])
     
     # user_item_table = generate_interacted_items_table(data_path, all=True, split='train')
     

@@ -11,12 +11,14 @@ import data_utils as utils
 
 data_path = os.getcwd() + '/dataset/' + 'ciao' 
 
-# utils.mat_to_csv(data_path)
+utils.mat_to_csv(data_path)
 
-# utils.generate_user_degree_table(data_path)
-# utils.generate_item_degree_table(data_path)
+utils.generate_social_dataset(data_path, save_flag=True)
+
+utils.generate_user_degree_table(data_path)
+utils.generate_item_degree_table(data_path)
 
 # utils.generate_interacted_items_table(data_path, all=True)
-# utils.generate_interacted_items_table(data_path, all=False, item_length=4)
+utils.generate_interacted_items_table(data_path, all=False, item_length=3)
 
 utils.generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=False)
