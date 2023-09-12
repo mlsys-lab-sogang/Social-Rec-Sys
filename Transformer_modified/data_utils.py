@@ -8,6 +8,7 @@ trustnetwork 에서 random walk sequence 생성
     - [노드, 노드, 노드], [degree, degree, dgree] 를 함께 구성 (like PyG's edge_index)
         => [[node1, node2, node3]]
 """
+import math
 import os
 import random
 import networkx as nx
@@ -296,7 +297,7 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
     dataframe = pd.read_csv(trust_file, index_col=[])
 
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
-    degree_table = generate_user_degree_table(data_path=data_path)
+    degree_table = generate_user_degree_table(data_path=data_path, split=split)
 
     all_path_list = []
 
@@ -413,81 +414,111 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
-def generate_sequence_data(dataset):
-    data_path = os.getcwd() + '/dataset/' + dataset
+def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=250):
+    """
+    Prepare data to fed into Dataset class.
 
-    # user_sequences, user_degree, item_sequences, item_rating = self.load_data()
+    data_path: path to dataset (/dataset/{ciao,epinions}/)
+    split: data split type (train/valid/test)
+    item_seq_len: pre-defined interacted item sequence length
 
-    user_path = '/social_user_7317_rw_length_20_fixed_seed_False.csv'
-    # user_path = '/social_user_18098_rw_length_20_fixed_seed_False.csv'
-    item_df = generate_interacted_items_table(data_path=data_path, item_length=4)
+    FIXME: 현재는 .csv로 저장 중. 추후 return을 한다면 아래와 같이 return을 할 수 있게 수정?
 
-    #########################Set으로 sequence의 모든 아이템 받기###############################
-    # item_df = utils.generate_interacted_items_table(data_path=self.data_path, all=True)
-    ######################################################################################
+    Returns:
+        user_seq:       고정된 길이의 사용자 랜덤워크 시퀀스, [num_user, seq_length]\n
+        user_degree:    랜덤워크 시퀀스에서 출현한 사용자들의 degree 정보, [num_user, seq_length] \n
+        item_seq:       랜덤워크 시퀀스에서 출현한 사용자들이 상호작용한 모든 아이템 리스트 \n
+        rating:         랜덤워크 시퀀스에서 출현한 사용자들이 상호작용한 모든 아이템들이 사용자로부터 받은 rating 정보 \n
+        item_degree:    선택된 아이템들의 degree 정보 (해당 아이템과 상호작용한 사용자의 수) \n
+    """
+    def slice_and_pad_list(input_list:list, slice_length:int):
+        """
+        Get list, and slice it by slice length, and pad with 0.
+        """
+        num_slices = math.ceil(len(input_list) / slice_length)
 
-    # load dataset & convert data type
-        # values are saved as 'str', convert into original type, 'list'.
-    user_df = pd.read_csv(data_path + user_path, index_col=[])
+        # Pad input list with 0
+        input_list += [0] * (slice_length * num_slices - len(input_list))
+
+        # Create sliced & padded list
+        result_list = [input_list[i:i + slice_length] for i in range(0, len(input_list), slice_length)]
+
+        return result_list
+
+    ## FIXME: 작성한 함수를 호출하도록 추후 수정
+    files = os.listdir(data_path)
+    for file_name in files:
+        if 'social' in file_name and f'_split_{split}.csv' in file_name:
+            user_path = file_name
+    item_path = f'user_item_interaction_{split}.csv'
+
+    # Load dataset & convert data type
+    user_df = pd.read_csv(data_path + '/' + user_path, index_col=[])
     user_df['random_walk_seq'] = user_df.apply(lambda x: literal_eval(x['random_walk_seq']), axis=1)
     user_df['degree'] = user_df.apply(lambda x: literal_eval(x['degree']), axis=1)
 
+    item_df = pd.read_csv(data_path + '/' + item_path, index_col=[])
     item_df['product_id'] = item_df.apply(lambda x: literal_eval(x['product_id']), axis=1)
     item_df['rating'] = item_df.apply(lambda x: literal_eval(x['rating']), axis=1)
-    
-    # Since each row's element is list, convert it.
-        # `user_sequences` & `user_degree` shape: (num_user, walk_length)
-    user_sequences = user_df['random_walk_seq'].to_numpy(dtype=object)
-    user_sequences = np.array([np.array(x) for x in user_sequences])
-    user_degree = user_df['degree'].to_numpy(dtype=object)
-    user_degree = np.array([np.array(x) for x in user_degree])
+    item_df['product_degree'] = item_df.apply(lambda x: literal_eval(x['product_degree']), axis=1)
 
-    # Since item_df's row element's type is 'list'(not 'str' like user_df), just convert it into ndarray.
-    item_sequences = item_df['product_id'].to_numpy(dtype=object)
-    item_sequences = np.array([np.array(x) for x in item_sequences])
-    item_rating = item_df['rating'].to_numpy(dtype=object)
-    item_rating = np.array([np.array(x) for x in item_rating])
+    # FIXME: duplicate 제거하고 sequence별로 잘라서 넣을때 rating 정보는 어떻게?
+    # total_df = pd.DataFrame(columns=['user_id', 'user_sequences', 'user_degree', 'item_sequences', 'item_rating', 'item_degree'])
+    total_df = pd.DataFrame(columns=['user_id', 'user_sequences', 'user_degree', 'item_sequences', 'item_degree'])
+    for _, data in tqdm(user_df.iterrows(), total=user_df.shape[0]):
+        current_user = data['user_id']
+        current_sequence = data['random_walk_seq']
+        current_degree = data['degree']
 
-    # user_sequences = torch.LongTensor(user_sequences)      # (num_user, item_length)
-    # user_degree = torch.LongTensor(user_degree)            # (num_user, item_length)
-    # item_sequences = torch.LongTensor(item_sequences)      # (num_user, item_length)
-    # item_rating = torch.LongTensor(item_rating)            # (num_user, item_length)
+        item_indexer = [int(x) for x in current_sequence]
+        item_list, rating_list, degree_list = [], [], []
 
-    item_degree = generate_item_degree_table(data_path)
-    print(item_degree)
-    item_degree_dict = dict(zip(item_degree['product_id'], item_degree['degree']))
-    print(len(item_degree_dict))
-
-    interacted_items = []
-    print("num seq = ", len(user_sequences))
-
-    for idx in range(len(user_sequences)):
-        user_seq = user_sequences[idx]
-        user_deg = user_degree[idx]
-
-        # since we need all user in random walk sequence's interacted items, fetch it with sequence value as index.
-        item_indexer = [int(x) for x in user_seq]#.numpy()]   # user_ids in user_seq
-        item_list, rating_list = [], []
-        item_set = set()
+        # 1개의 rw sequence에 있는 사용자들이 상호작용한 모든 아이템 가져와서
         for index in item_indexer:
-            item_list.append(item_sequences[index])
-            rating_list.append(item_rating[index])
-            item_set.update(item_sequences[index])#.tolist())
-            # if idx<5:
-                # print(item_sequences[index], type(item_sequences[index]), len(item_sequences[index]))
-        interacted_items.append(list(item_set))
-        if idx<5:
-            print("len:", len(item_set), item_set)
+            item_list.append(item_df.loc[item_df['user_id'] == index]['product_id'].values[0])
+            # rating_list.append(item_df.loc[item_df['user_id'] == index]['rating'].values[0])
+            degree_list.append(item_df.loc[item_df['user_id'] == index]['product_degree'].values[0])
+        
+        # 이를 flatten하고
+        flat_item_list = [item for row in item_list for item in row]
+        # flat_rating_list = [item for row in rating_list for item in row]
+        flat_degree_list = [item for row in degree_list for item in row]
+        
+        # 중복을 제거
+        item_list_removed_duplicate = list(set(flat_item_list))
+        # flat_rating_list = list(set(flat_rating_list))
+        # flat_degree_list = list(set(flat_degree_list))
 
-    interacted_items_degree = list(map(lambda x: [item_degree_dict[y] for y in x] , interacted_items))
-    print(interacted_items[:5])
-    print(interacted_items_degree[:5])
-    # print("set: ", interacted_items)
-    return interacted_items
+        # flat_item_list 원소와 대응되는 degree를 추출 (TODO: rating은?)
+        mapping_dict = {}
+        for item, degree in zip(flat_item_list, flat_degree_list):
+            if item not in mapping_dict:
+                mapping_dict[item] = degree
+        
+        # 추출한 degree를 item_list_removed_duplicate에 대응하여 list 생성
+        degree_list_removed_duplicate = [mapping_dict[item] for item in item_list_removed_duplicate]
+
+        # 중복제거한 list를 정해진 길이 (item_seq_length) 만큼 자르기
+        sliced_item_list = slice_and_pad_list(item_list_removed_duplicate, slice_length=item_seq_len)
+        # sliced_rating_list = slice_and_pad_list(flat_rating_list, slice_length=item_seq_len)
+        sliced_degree_list = slice_and_pad_list(degree_list_removed_duplicate, slice_length=item_seq_len)
+
+        # 자른 list를 dataframe에 담아서 저장
+        for item_list, degree_list in zip(sliced_item_list, sliced_degree_list):
+            total_df.loc[len(total_df)] = [current_user, current_sequence, current_degree, item_list, degree_list]
+
+    # df.to_csv(data_path + f'/random_walk_sequence_{split}_interated_items_info.csv', index=False)
+    total_df.to_csv(data_path + f"/sequence_data_{split}.csv", index=False)
 
 
 if __name__ == "__main__":
     ##### For checking & debugging (will remove later)
+
+    data_path = os.getcwd() + '/dataset/' + 'ciao'
+    generate_input_sequence_data(data_path=data_path, split='train')
+    # user_sequences, user_degree, item_sequences, item_rating, item_degree = generate_sequence_data(data_path=data_path, split='train')
+    # print(user_sequences.shape)
+    quit() 
     
     data_path = os.getcwd() + '/dataset/' + 'ciao' 
     rating_file = data_path + '/rating_test.csv'
