@@ -68,8 +68,9 @@ class Decoder(nn.Module):
         # print(f"Decoder's src mask from Encoder: {src_mask.shape}")
 
         # Rating encoding
-            # [batch_size, seq_length, seq_length, num_heads]
-        attn_bias = self.relation_bias(batched_data)#.permute(0, 3, 2, 1)
+            # [batch_size, seq_length_user, seq_length_item, num_heads]
+            # ==> [batch_size, num_heads, seq_length_user, seq_length_item]
+        attn_bias = self.relation_bias(batched_data).permute(0, 3, 2, 1)
 
         # Decoder layer forward pass (MHA, FFN)
         for layer in self.dec_layers:
