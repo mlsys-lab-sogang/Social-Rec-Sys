@@ -1,13 +1,9 @@
 import os
-import time
+import pickle
 import numpy as np
-import pandas as pd
-from ast import literal_eval
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-
-import data_utils as utils
 
 class MyDataset(Dataset):
     """
@@ -23,40 +19,40 @@ class MyDataset(Dataset):
             split: dataset split type (train // valid // test)
         """
         self.data_path = os.getcwd() + '/dataset/' + dataset
-        self.rating_table = pd.read_csv(self.data_path + '/' + f"rating_{split}.csv", index_col=[])
 
-        using_file = f"sequence_data_{split}.csv"
-        spd_file = self.data_path + '/' + 'shortest_path_result.npy'
+        # columns: user_id, user_sequences, user_degree, item_sequences, item_degree, item_rating, spd_matrix
+        with open(self.data_path + '/' + f'sequence_data_num_user_100_itemseq_250_{split}.pkl', 'rb') as file:
+            dataframe = pickle.load(file)
 
-        # start_time = time.time()
-
-        # columns: user_id, user_sequences, user_degree, item_sequences, item_degree
-        dataframe = pd.read_csv(self.data_path + '/' + using_file, index_col=[])
-        
-        # convert data types (list(str) => list(list))
-        user_seq = dataframe.apply(lambda x: literal_eval(x['user_sequences']), axis=1).to_numpy(dtype=object)
+        user_seq = dataframe['user_sequences'].values
         user_seq = np.array([np.array(x) for x in user_seq])
-        
-        user_deg = dataframe.apply(lambda x: literal_eval(x['user_degree']), axis=1).to_numpy(dtype=object)
+
+        user_deg = dataframe['user_degree'].values
         user_deg = np.array([np.array(x) for x in user_deg])
 
-        item_seq = dataframe.apply(lambda x: literal_eval(x['item_sequences']), axis=1).to_numpy(dtype=object)
+        item_seq = dataframe['item_sequences'].values
         item_seq = np.array([np.array(x) for x in item_seq])
 
-        item_deg = dataframe.apply(lambda x: literal_eval(x['item_degree']), axis=1).to_numpy(dtype=object)
+        item_deg = dataframe['item_degree'].values
         item_deg = np.array([np.array(x) for x in item_deg])
+
+        # shape: [total_samples(num_row), seq_len_user, seq_len_item]
+        item_rating = dataframe['item_rating'].values
+        item_rating = np.array([np.array(x) for x in item_rating])
+
+        # shape: [total_samples(num_row), seq_len_user, seq_len_user]
+        spd_matrix = dataframe['spd_matrix'].values
+        spd_matrix = np.array([np.array(x) for x in spd_matrix])
 
         self.user_sequences = torch.LongTensor(user_seq)
         self.user_degree = torch.LongTensor(user_deg)
         self.item_sequences = torch.LongTensor(item_seq)
         self.item_degree = torch.LongTensor(item_deg)
-        self.spd_table = torch.from_numpy(np.load(spd_file)).long()
-
-        # end_time = time.time()
-        # print(f"Data init time: {end_time - start_time:.4f}s")      # Ciao: 18.2 s 
+        self.rating_matrix = torch.LongTensor(item_rating)
+        self.spd_matrix = torch.LongTensor(spd_matrix)
     
     def __len__(self):
-        # 전체 {train/valid/test}.csv의 길이
+        # 전체 {train/valid/test}.csv의 길이 (dataframe의 전체 row 갯수)
         return len(self.user_sequences)
 
     def __getitem__(self, index):
@@ -64,23 +60,8 @@ class MyDataset(Dataset):
         user_deg = self.user_degree[index]
         item_seq = self.item_sequences[index]
         item_deg = self.item_degree[index]
-
-        # 현재 선택된 user_seq에 있는 사용자들에 대한 spd matrix 생성
-        spd_table = self.spd_table[user_seq.squeeze(), :][:, user_seq.squeeze()]
-
-        ###################### FIXME: data_utils -> generate_input_sequence_data() 로 이관해서 저장 ######################
-        # 현재 선택된 user_seq에 있는 사용자들과 item_seq에 대해 [user_seq, item_seq] 크기의 rating table 생성
-        rating_table = torch.zeros((len(user_seq), len(item_seq)))
-        
-        for i in range(rating_table.shape[0]):      # row
-            current_user = user_seq[i].item()
-            for j in range(rating_table.shape[1]):  # col
-                current_item = item_seq[j].item()
-                current_rating = self.rating_table.loc[(self.rating_table['user_id'] == current_user) & (self.rating_table['product_id'] == current_item)]['rating'].values
-                if len(current_rating) == 0:
-                    continue
-                rating_table[i][j] = current_rating[0]
-        ###################### FIXME: data_utils -> generate_input_sequence_data() 로 이관해서 저장 ######################
+        rating_table = self.rating_matrix[index]
+        spd_table = self.spd_matrix[index]
 
         batch_data = {
             'user_seq': user_seq,
