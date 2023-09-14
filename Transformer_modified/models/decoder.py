@@ -11,7 +11,7 @@ class Decoder(nn.Module):
     Decoder for modeling item representation (in user-item graph),
     and perform rating prediction
     """
-    def __init__(self, data_path, num_item, max_degree, d_model, d_ffn, num_heads, dropout, num_layers):
+    def __init__(self, num_item, max_degree, d_model, d_ffn, num_heads, dropout, num_layers):
         """
         Args:
             data_path: path to dataset (ciao or epinions)
@@ -44,7 +44,7 @@ class Decoder(nn.Module):
             ) for _ in range(num_layers)]
         )
 
-        self.relation_bias = RatingEncoder()
+        self.relation_bias = RatingEncoder(num_heads=num_heads)
 
         # rating prediction layer
         self.pred_layer = DecoderLayer(
@@ -55,17 +55,18 @@ class Decoder(nn.Module):
             last_layer = True
         )
     
-    def forward(self, batched_data, enc_output, trg_mask, src_mask):
+    def forward(self, batched_data, enc_output, src_mask):
         # Input Encoding: Node it encoding + degree encoding
             # [batch_size, seq_length, item_length]
         x = self.input_embed(batched_data)
 
         # Generate mask for padded data
-        dec_self_attn_mask = generate_attn_pad_mask(batched_data['item_seq'], batched_data['item_seq'])
-        dec_self_attn_subsequent_mask = generate_attn_subsequent_mask(batched_data['item_seq'])
+        dec_self_attn_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['item_list'])
+        dec_self_attn_subsequent_mask = generate_attn_subsequent_mask(batched_data['item_list'])
         trg_mask = torch.gt((dec_self_attn_mask + dec_self_attn_subsequent_mask), 0)
-        # print(f"Decoder trg_mask: {trg_mask.shape}")
-        # print(f"Decoder's src mask from Encoder: {src_mask.shape}")
+        
+        dec_enc_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['user_seq'])
+        src_mask = dec_enc_mask
 
         # Rating encoding
             # [batch_size, seq_length_user, seq_length_item, num_heads]
@@ -77,6 +78,6 @@ class Decoder(nn.Module):
             x = layer(x, enc_output, trg_mask, src_mask, attn_bias)
 
         # Pass to prediction layer
-        output = self.pred_layer(x)
+        output = self.pred_layer(x, enc_output, trg_mask, src_mask, attn_bias)
 
         return output
