@@ -139,8 +139,11 @@ class RatingEncoder(nn.Module):
         batched_data: batched data from DataLoader
         """
 
-        # [batch_size, seq_length_user, seq_length_item]        
+        # [batch_size, seq_length_user, seq_length_item] 
+        ###### FIXME: 정답인 rating 정보를 바로 주는건 말이 X. 따라서 상호작용 여부(0 or 1)로 주자.       
         item_rating = batched_data['item_rating']
+        item_rating = torch.where(item_rating == 0, 0, 1)
+        ######
 
         # Q*K^T 를 수행하면 [batch_size, num_heads, seq_length_item, seg_length_user]
         # 여기에 bias term으로 더해주므로 [batch_size, seq_length_user, seq_length_item] ==> [batch_size, num_heads, seq_length_user, seq_length_item] 이 되어야 함. -> decoder 부분에서 수행
