@@ -108,7 +108,7 @@ class ItemNodeEncoder(nn.Module):
         # TODO: Dataset 에서 item_degree 정보도 batch data에 함께 담아주도록 수정 & item은 [batch_size, seq_length, interacted_item] 이었는데, 이를 [batch_size, seq_length, interacted_item*seq_length]
         # 즉, 시퀀스마다 고정된 수를 보는게 아니라 전체를 1개로 flatten [seq_length*interacted_item] 해서 전달
         x, degree = (
-            batched_data['item_seq'],
+            batched_data['item_list'],
             batched_data['item_degree']
         )
 
