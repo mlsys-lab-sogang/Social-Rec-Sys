@@ -61,11 +61,11 @@ class Decoder(nn.Module):
         x = self.input_embed(batched_data)
 
         # Generate mask for padded data
-        dec_self_attn_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['item_list'])
-        dec_self_attn_subsequent_mask = generate_attn_subsequent_mask(batched_data['item_list'])
+        dec_self_attn_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['item_list']).cuda()
+        dec_self_attn_subsequent_mask = generate_attn_subsequent_mask(batched_data['item_list']).cuda()
         trg_mask = torch.gt((dec_self_attn_mask + dec_self_attn_subsequent_mask), 0)
         
-        dec_enc_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['user_seq'])
+        dec_enc_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['user_seq']).cuda()
         src_mask = dec_enc_mask
 
         # Rating encoding

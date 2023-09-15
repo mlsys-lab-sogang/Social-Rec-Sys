@@ -33,4 +33,7 @@ class Transformer(nn.Module):
         # print(f"############### Enc end... {enc_output.shape} and {src_mask.shape} ###############")
         output = self.decoder(batched_data, enc_output, src_mask)
 
-        return output
+
+        # [batch_size, seq_leng_item, seq_len_user]
+        # ==> [batch_size, seq_len_user, seq_len_item]
+        return output.permute(0, 2, 1)
