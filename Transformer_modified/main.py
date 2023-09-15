@@ -85,7 +85,9 @@ def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_de
 
     return best_dev_accu
 
-def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
+##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
+# def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
+def train(model, optimizer, ds_iter, training_config, criterion):
 
     logger.info("***** Running training *****")
     logger.info("  Total steps = %d", training_config["num_train_steps"])
@@ -130,7 +132,11 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
             loss.backward()
             nn.utils.clip_grad_value_(model.parameters(), clip_value=1) # Gradient Clipping
             optimizer.step()
-            lr_scheduler.step()
+
+            ##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
+            # lr_scheduler.step()
+            ##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
+
             losses.update(loss)
             epoch_iterator.set_description(
                         "Training (%d / %d Steps) (loss=%2.5f)" % (step, len(epoch_iterator), losses.val))
@@ -312,27 +318,28 @@ def main():
         betas = (0.9, 0.999), eps = 1e-6, weight_decay = training_config["weight_decay"]
     )
 
-    ###################### FIXME: num_epochs 1인 경우는 OK. 늘어나는 경우 ValueError: Tried to step 92 times. The specified number of total steps is 90 발생함 (10일경우)
     # total_steps는 cycle당 있는 step 수. 없다면 epoch와 steps_per_epoch를 전댈해야함.
         # steps_per_epoch는 한 epoch에서의 전체 step 수: (total_number_of_train_samples / batch_size)
     total_epochs = training_config["num_epochs"]
     total_train_samples = len(train_ds)
     training_config["num_train_steps"] = math.ceil(total_train_samples / total_epochs)
-
-    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        optimizer = optimizer,
-        max_lr = training_config["learning_rate"],
-        pct_start = training_config["warmup"] / training_config["num_train_steps"],
-        anneal_strategy = training_config["lr_decay"],
-        total_steps = training_config["num_train_steps"]
-    )
+    
+    ###################### FIXME: num_epochs 1인 경우는 OK. 늘어나는 경우 ValueError: Tried to step 92 times. The specified number of total steps is 90 발생함 (10일경우)
+    # lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    #     optimizer = optimizer,
+    #     max_lr = training_config["learning_rate"],
+    #     pct_start = training_config["warmup"] / training_config["num_train_steps"],
+    #     anneal_strategy = training_config["lr_decay"],
+    #     total_steps = training_config["num_train_steps"]
+    # )
     ######################
 
     criterion = nn.MSELoss()
 
     ### train ###
     if args.mode == 'train':
-        train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
+        # train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
+        train(model, optimizer, ds_iter, training_config, criterion)
 
     ### eval ###
     if os.path.exists(checkpoint_path) and checkpoint_path != os.getcwd() + '/checkpoints/test.model':
