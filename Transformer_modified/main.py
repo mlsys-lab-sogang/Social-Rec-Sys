@@ -10,12 +10,14 @@ import itertools
 from tqdm import tqdm
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
 
 from utils import redirect_stdout
 from config import Config
 from dataset import MyDataset
+from models.transformer import Transformer
 
 logger = logging.getLogger(__name__)
 
@@ -37,49 +39,60 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_dev_accu, init_t):
-    val_acc = []
+def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_dev_rmse, init_t, criterion):
+    val_rmse = []
+    val_mae = []
     eval_losses = AverageMeter()
     model.eval()
     with torch.no_grad():
         for dev_step_idx in range(training_config["num_eval_steps"]):
             _, batch = next(ds_iter['dev'])
 
-            user_seq = batch['user_seq'].cuda()
-            user_degree = batch['user_degree'].cuda()
-            item_list = batch['item_list'].cuda()
-            item_deg = batch['item_deg'].cuda()
-            rating_table = batch['rating_table'].cuda()
-            spd_table = batch['spd_table'].cuda()
-            outputs = model(user_seq,user_degree,item_list,item_deg,rating_table,spd_table)
+            batch['user_seq'] = batch['user_seq'].cuda()
+            batch['user_degree'] = batch['user_degree'].cuda()
+            batch['item_list'] = batch['item_list'].cuda()
+            batch['item_degree'] = batch['item_degree'].cuda()
+            batch['item_rating'] = batch['item_rating'].cuda()
+            batch['spd_matrix'] = batch['spd_matrix'].cuda()
 
-            loss = outputs["loss"].mean()
-            eval_losses.update(loss.mean())
-            acc = outputs["accu"].mean()
-            val_acc.append(acc)
+            outputs = model(batch)
 
-        total_acc = sum(val_acc) / len(val_acc)
-        if total_acc > best_dev_accu:
-            best_dev_accu = total_acc
+            loss = criterion(outputs.float(), batch['item_rating'].float())
+            # eval_losses.update(loss.mean())
+            eval_losses.update(loss)
+
+            # Compute RMSE & MAE
+            mse = F.mse_loss(outputs, batch['item_rating'], reduction='none')
+            rmse = torch.sqrt(mse.mean())
+            mae = F.l1_loss(outputs, batch['item_rating'], reduction='mean')
+
+            val_rmse.append(rmse)
+            val_mae.append(mae)
+
+        total_rmse = sum(val_rmse) / len(val_rmse)
+        total_mae = sum(val_mae) / len(val_mae)
+        if total_rmse > best_dev_rmse:
+            best_dev_accu = total_rmse
             torch.save({"model_state_dict":model.state_dict()}, checkpoint_path)
-            print('best model saved: step = ',global_step, 'dev accu = ',total_acc)
+            print('best model saved: step = ',global_step, 'dev RMSE = ',total_rmse, 'dev MAE = ', total_mae)
 
-    print("\nValidation Results")
+    print("\n[Validation Results]")
     print("Global Steps: %d" % global_step)
     print("Valid Loss: %2.5f" % eval_losses.avg)
-    print("Valid Accuracy: %2.5f" % total_acc)
+    print("Valid RMSE: %2.5f" % total_rmse)
+    print("Valid MAE: %2.5f" % total_mae)
     print("time stamp: {}".format((time.time()-init_t)))
 
     return best_dev_accu
 
-def train(model, optimizer, lr_scheduler, ds_iter, training_config):
+def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
 
     logger.info("***** Running training *****")
     logger.info("  Total steps = %d", training_config["num_train_steps"])
     losses = AverageMeter()
 
     checkpoint_path = training_config['checkpoint_path']
-    best_dev_accu = 0
+    best_dev_rmse = 0
 
     total_epochs = training_config["num_epochs"]
     epoch_iterator = tqdm(ds_iter['train'],
@@ -94,21 +107,27 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config):
     end = torch.cuda.Event(enable_timing=True)
     start.record()
 
+    # Training step
     for epoch in range(total_epochs):
         for step, batch in enumerate(epoch_iterator):
-            
-            user_seq = batch['user_seq'].cuda()
-            user_degree = batch['user_degree'].cuda()
-            item_list = batch['item_list'].cuda()
-            item_deg = batch['item_deg'].cuda()
-            rating_table = batch['rating_table'].cuda()
-            spd_table = batch['spd_table'].cuda()
-            outputs = model(user_seq,user_degree,item_list,item_deg,rating_table,spd_table)
+            # 모델의 입력은 batch 그 자체, batch는 Dict이며 따라서 Dict 안의 tensor들을 device로 load.
+            batch['user_seq'] = batch['user_seq'].cuda()
+            batch['user_degree'] = batch['user_degree'].cuda()
+            batch['item_list'] = batch['item_list'].cuda()
+            batch['item_degree'] = batch['item_degree'].cuda()
+            batch['item_rating'] = batch['item_rating'].cuda()
+            batch['spd_matrix'] = batch['spd_matrix'].cuda()
 
-            loss = outputs["loss"].mean()
-            acc = outputs["accu"].mean()
+            # forward pass
+            outputs = model(batch)
 
-            loss.backward() # loss.backward()
+            # [batch_size, seq_len_item, seq_len_user] : model output
+            # [batch_size, seq_len_user, seq_len_item] : target인 rating matrix 
+
+            # compute loss 
+            loss = criterion(outputs.float(), batch['item_rating'].float())
+
+            loss.backward()
             nn.utils.clip_grad_value_(model.parameters(), clip_value=1) # Gradient Clipping
             optimizer.step()
             lr_scheduler.step()
@@ -116,11 +135,12 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config):
             epoch_iterator.set_description(
                         "Training (%d / %d Steps) (loss=%2.5f)" % (step, len(epoch_iterator), losses.val))
 
+        # Validation step
         if (step + 1) % training_config["eval_frequency"] == 0:
             end.record()
             torch.cuda.synchronize()
             total_time += (start.elapsed_time(end))
-            best_dev_accu = valid(model, ds_iter, training_config, checkpoint_path, step, best_dev_accu, init_t)
+            best_dev_rmse = valid(model, ds_iter, training_config, checkpoint_path, step, best_dev_rmse, init_t, criterion)
             model.train()
             start.record()
 
@@ -132,9 +152,10 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config):
     print(torch.cuda.memory_summary(device=0))
 
 
-def eval(model, ds_iter):
+def eval(model, ds_iter, criterion):
 
-    val_acc = []
+    val_rmse = []
+    val_mae = []
     eval_losses = AverageMeter()
     model.eval()
 
@@ -143,27 +164,37 @@ def eval(model, ds_iter):
     start.record()
     with torch.no_grad():
         for _, batch in ds_iter['test']:
+            
+            # 모델의 입력은 batch 그 자체, batch는 Dict이며 따라서 Dict 안의 tensor들을 device로 load.
+            batch['user_seq'] = batch['user_seq'].cuda()
+            batch['user_degree'] = batch['user_degree'].cuda()
+            batch['item_list'] = batch['item_list'].cuda()
+            batch['item_degree'] = batch['item_degree'].cuda()
+            batch['item_rating'] = batch['item_rating'].cuda()
+            batch['spd_matrix'] = batch['spd_matrix'].cuda()
+            outputs = model(batch)
 
-            user_seq = batch['user_seq'].cuda()
-            user_degree = batch['user_degree'].cuda()
-            item_list = batch['item_list'].cuda()
-            item_deg = batch['item_deg'].cuda()
-            rating_table = batch['rating_table'].cuda()
-            spd_table = batch['spd_table'].cuda()
-            outputs = model(user_seq,user_degree,item_list,item_deg,rating_table,spd_table)
+            loss = criterion(outputs.float(), batch['item_rating'].float())
+            # eval_losses.update(loss.mean())
+            eval_losses.update(loss)
+            
+            mse = F.mse_loss(outputs, batch['item_rating'], reduction='none')
+            rmse = torch.sqrt(mse.mean())
+            mae = F.l1_loss(outputs, batch['item_rating'], reduction='mean')
 
-            loss = outputs["loss"].mean()
-            eval_losses.update(loss.mean())
-            acc = outputs["accu"].mean()
-            val_acc.append(acc)
-        total_acc = sum(val_acc) / len(val_acc)
+            val_rmse.append(rmse)
+            val_mae.append(mae)
+
+        total_rmse = sum(val_rmse) / len(val_rmse)
+        total_mae = sum(val_mae) / len(val_mae)
 
     end.record()
     torch.cuda.synchronize()
 
-    print("Evaluation Results")
+    print("[Evaluation Results]")
     print("Loss: %2.5f" % eval_losses.avg)
-    print("Accuracy: %2.5f" % total_acc)
+    print("RMSE: %2.5f" % total_rmse)
+    print("MAE: %2.5f" % total_mae)
     print(f"total eval time: {(start.elapsed_time(end))}")
     print("peak memory usage (MB): {}".format(torch.cuda.memory_stats()['active_bytes.all.peak']>>20))
     print("all memory usage (MB): {}".format(torch.cuda.memory_stats()['active_bytes.all.allocated']>>20))
@@ -177,8 +208,8 @@ def get_args():
                         help = "ciao, epinions")
     parser.add_argument("--checkpoint", type = str, default="test",
                         help="load ./checkpoints/model_name.model to evaluation")
-    parser.add_argument('--randomseed', type=int, default=0)
-    parser.add_argument('--name', type=str)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--name', type=str, help="checkpoint model name")
     # parser.add_argument('--batch_size', type=int, default=64)
     # parser.add_argument('--n_layers', type=int, default=12)
     # parser.add_argument('--lr', type=float, default=2e-4)
@@ -209,7 +240,7 @@ def main():
     #training_config["learning_rate"] = args.learning_rate
 
     ### log preparation ###
-    log_dir = './logs/log-{}/'.format(args.random)
+    log_dir = os.getcwd() + f'/logs/log_seed_{args.seed}/'
     if not os.path.exists(log_dir):
         os.mkdir(log_dir)
     log_dir = os.path.join(log_dir, args.dataset)
@@ -222,22 +253,22 @@ def main():
     print(json.dumps([model_config, training_config], indent = 4))
 
     ###  set the random seeds for deterministic results. ####
-    SEED = args.random
+    SEED = args.seed
     random.seed(SEED)
     torch.manual_seed(SEED)
     torch.backends.cudnn.deterministic = True
 
 
     ### model preparation ###
-    model = Model(model_config)
+    model = Transformer(**model_config)
 
-    checkpoint_dir = './checkpoints/checkpoints-{}/'.format(args.random)
+    checkpoint_dir = os.getcwd() + f'/checkpoints/checkpoints_seed_{args.seed}/'
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
-    checkpoint_dir = os.path.join(checkpoint_dir, args.task)
+    checkpoint_dir = os.path.join(checkpoint_dir, args.mode)
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
-    checkpoint_path = os.path.join(checkpoint_dir, '{}.model'.format(args.name))
+    checkpoint_path = os.path.join(checkpoint_dir, f'{args.name}.model')
     training_config["checkpoint_path"] = checkpoint_path
     """if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
@@ -256,10 +287,21 @@ def main():
 
     ### data preparation ###
 
+    # ds_iter = {
+    #         "train":DataLoader(MyDataset(f"./dataset/{args.dataset}.train.pickle", True), batch_size = training_config["batch_size"], shuffle=True),
+    #         "dev":enumerate(DataLoader(MyDataset(f"./data/{args.dataset}.dev.pickle", True), batch_size = training_config["batch_size"]), shuffle=False),
+    #         "test":enumerate(DataLoader(MyDataset(f"./data/{args.dataset}.test.pickle", False), batch_size = training_config["batch_size"]), shuffle=False),
+    # }
+
+    ### FIXME: 전체 데이터에 대해 파일 생성이 오래 걸림 (현재 시퀀스의 rating matrix 생성하는 부분이 문제로 보임) ==> rw sequence의 시작 노드 번호가 user_id=100 까지만 생성한 것으로 test.
+    train_ds = MyDataset(dataset=args.dataset, split='train')
+    dev_ds = MyDataset(dataset=args.dataset, split='valid')
+    test_ds = MyDataset(dataset=args.dataset, split='test')
+
     ds_iter = {
-            "train":DataLoader(MyDataset(f"./dataset/{args.dataset}.train.pickle", True), batch_size = training_config["batch_size"], shuffle=True),
-            "dev":enumerate(DataLoader(MyDataset(f"./data/{args.dataset}.dev.pickle", True), batch_size = training_config["batch_size"]), shuffle=False),
-            "test":enumerate(DataLoader(MyDataset(f"./data/{args.dataset}.test.pickle", False), batch_size = training_config["batch_size"]), shuffle=False),
+            "train":DataLoader(train_ds, batch_size = training_config["batch_size"], shuffle=True),
+            "dev":enumerate(DataLoader(dev_ds, batch_size = training_config["batch_size"], shuffle=True)),
+            "test":enumerate(DataLoader(test_ds, batch_size = training_config["batch_size"], shuffle=False))
     }
 
     ### training preparation ###
@@ -270,6 +312,13 @@ def main():
         betas = (0.9, 0.999), eps = 1e-6, weight_decay = training_config["weight_decay"]
     )
 
+    ###################### FIXME: num_epochs 1인 경우는 OK. 늘어나는 경우 ValueError: Tried to step 92 times. The specified number of total steps is 90 발생함 (10일경우)
+    # total_steps는 cycle당 있는 step 수. 없다면 epoch와 steps_per_epoch를 전댈해야함.
+        # steps_per_epoch는 한 epoch에서의 전체 step 수: (total_number_of_train_samples / batch_size)
+    total_epochs = training_config["num_epochs"]
+    total_train_samples = len(train_ds)
+    training_config["num_train_steps"] = math.ceil(total_train_samples / total_epochs)
+
     lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer = optimizer,
         max_lr = training_config["learning_rate"],
@@ -277,17 +326,20 @@ def main():
         anneal_strategy = training_config["lr_decay"],
         total_steps = training_config["num_train_steps"]
     )
+    ######################
+
+    criterion = nn.MSELoss()
 
     ### train ###
     if args.mode == 'train':
-        train(model, optimizer, lr_scheduler, ds_iter, training_config)
+        train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
 
     ### eval ###
-    if os.path.exists(checkpoint_path) and checkpoint_path != './checkpoints/test.model':
+    if os.path.exists(checkpoint_path) and checkpoint_path != os.getcwd() + '/checkpoints/test.model':
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint["model_state_dict"])
         print("loading the best model from: " + checkpoint_path)
-    eval(model, ds_iter, training_config)
+    eval(model, ds_iter, criterion)
 
     torch.cuda.empty_cache()
 
