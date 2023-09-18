@@ -20,9 +20,19 @@ class MyDataset(Dataset):
         """
         self.data_path = os.getcwd() + '/dataset/' + dataset
 
+
+        #################### FIXME: user 100명에 대해서 test 
         # columns: user_id, user_sequences, user_degree, item_sequences, item_degree, item_rating, spd_matrix
-        with open(self.data_path + '/' + f'sequence_data_num_user_100_itemseq_250_{split}.pkl', 'rb') as file:
+        # with open(self.data_path + '/' + f'sequence_data_num_user_100_itemseq_250_{split}.pkl', 'rb') as file:
+            # dataframe = pickle.load(file)
+        
+        # 모든 user
+        with open(self.data_path + '/' + f'sequence_data_itemlen_250_{split}.pkl', 'rb') as file:
             dataframe = pickle.load(file)
+        ####################
+
+
+
 
         user_seq = dataframe['user_sequences'].values
         user_seq = np.array([np.array(x) for x in user_seq])
