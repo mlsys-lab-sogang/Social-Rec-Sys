@@ -86,8 +86,8 @@ def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_de
     return best_dev_accu
 
 ##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
-# def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
-def train(model, optimizer, ds_iter, training_config, criterion):
+def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
+# def train(model, optimizer, ds_iter, training_config, criterion):
 
     logger.info("***** Running training *****")
     logger.info("  Total steps = %d", training_config["num_train_steps"])
@@ -97,10 +97,6 @@ def train(model, optimizer, ds_iter, training_config, criterion):
     best_dev_rmse = 0
 
     total_epochs = training_config["num_epochs"]
-    epoch_iterator = tqdm(ds_iter['train'],
-                              desc="Training (X / X Steps) (loss=X.X)",
-                              bar_format="{l_bar}{r_bar}",
-                              dynamic_ncols=True)
     
     model.train()
     init_t = time.time()
@@ -111,6 +107,12 @@ def train(model, optimizer, ds_iter, training_config, criterion):
 
     # Training step
     for epoch in range(total_epochs):
+        epoch_iterator = tqdm(ds_iter['train'],
+                            desc="Training (X / X Steps) (loss=X.X)",
+                            bar_format="{l_bar}{r_bar}",
+                            dynamic_ncols=True,
+                            leave=False)
+        
         for step, batch in enumerate(epoch_iterator):
             # 모델의 입력은 batch 그 자체, batch는 Dict이며 따라서 Dict 안의 tensor들을 device로 load.
             batch['user_seq'] = batch['user_seq'].cuda()
@@ -134,12 +136,13 @@ def train(model, optimizer, ds_iter, training_config, criterion):
             optimizer.step()
 
             ##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
-            # lr_scheduler.step()
+            lr_scheduler.step()
             ##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
 
             losses.update(loss)
             epoch_iterator.set_description(
                         "Training (%d / %d Steps) (loss=%2.5f)" % (step, len(epoch_iterator), losses.val))
+        print(f"Epoch {epoch} Finished (Average Loss: {losses.avg:.4f})")
 
         # Validation step
         if (step + 1) % training_config["eval_frequency"] == 0:
@@ -324,22 +327,20 @@ def main():
     total_train_samples = len(train_ds)
     training_config["num_train_steps"] = math.ceil(total_train_samples / total_epochs)
     
-    ###################### FIXME: num_epochs 1인 경우는 OK. 늘어나는 경우 ValueError: Tried to step 92 times. The specified number of total steps is 90 발생함 (10일경우)
-    # lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    #     optimizer = optimizer,
-    #     max_lr = training_config["learning_rate"],
-    #     pct_start = training_config["warmup"] / training_config["num_train_steps"],
-    #     anneal_strategy = training_config["lr_decay"],
-    #     total_steps = training_config["num_train_steps"]
-    # )
-    ######################
+    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer = optimizer,
+        max_lr = training_config["learning_rate"],
+        pct_start = training_config["warmup"] / training_config["num_train_steps"],
+        anneal_strategy = training_config["lr_decay"],
+        total_steps = training_config["num_train_steps"]
+    )
 
     criterion = nn.MSELoss()
 
     ### train ###
     if args.mode == 'train':
-        # train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
-        train(model, optimizer, ds_iter, training_config, criterion)
+        train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
+        # train(model, optimizer, ds_iter, training_config, criterion)
 
     ### eval ###
     if os.path.exists(checkpoint_path) and checkpoint_path != os.getcwd() + '/checkpoints/test.model':
