@@ -1,8 +1,9 @@
 
-ciao={
+ciao={  
+         # dataset의 전체 길이 (기록 및 확인용)
          "dataset":{
-            "train":560000,
-            "dev":38000,
+            "train":53393,
+            "dev":8489,
             "test":38000,
          },
          "model":{
@@ -18,15 +19,15 @@ ciao={
          },
          ## FIXME: fixed batch_size & num_epochs
          "training":{
-            "batch_size":64,       
-            "optimizer":"adam",
-            "learning_rate":0.0001,
+            "batch_size":64,        # total_train_step: 835 (1 epoch 당 `len(train_dataset) / batch_size`)
+            "optimizer":"adamw",
+            "learning_rate":0.001,
             "warmup":80, 
             "lr_decay":"linear",
             "weight_decay":0,
-            "eval_frequency":200, 
+            "eval_frequency":400, 
             "num_epochs":10,
-            "num_eval_steps":100, 
+            "num_eval_steps":849,   # total_valid_sample / total_epoch
             "patience":10, 
          },
      }
