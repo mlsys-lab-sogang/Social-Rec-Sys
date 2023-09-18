@@ -10,6 +10,7 @@ trustnetwork 에서 random walk sequence 생성
 """
 import math
 import os
+import pickle
 import random
 import networkx as nx
 import numpy as np
@@ -464,8 +465,9 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
         user_seq:       고정된 길이의 사용자 랜덤워크 시퀀스, [num_user, seq_length]\n
         user_degree:    랜덤워크 시퀀스에서 출현한 사용자들의 degree 정보, [num_user, seq_length] \n
         item_seq:       랜덤워크 시퀀스에서 출현한 사용자들이 상호작용한 모든 아이템 리스트 \n
-        rating:         랜덤워크 시퀀스에서 출현한 사용자들이 상호작용한 모든 아이템들이 사용자로부터 받은 rating 정보 \n
+        item_rating:    랜덤워크 시퀀스에서 출현한 사용자들이 상호작용한 모든 아이템에 대한 rating 정보가 담긴 matrix \n
         item_degree:    선택된 아이템들의 degree 정보 (해당 아이템과 상호작용한 사용자의 수) \n
+        spd_matrix:     현재 user_seq에 해당하는 사용자들의 SPD matrix (사전 생성한 전체 사용자의 SPD table에서 slicing한 matrix)
     """
     def slice_and_pad_list(input_list:list, slice_length:int):
         """
@@ -487,6 +489,8 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
         if 'social' in file_name and f'_split_{split}.csv' in file_name:
             user_path = file_name
     item_path = f'user_item_interaction_{split}.csv'
+    spd_path = 'shortest_path_result.npy'
+    item_rating_path = f'rating_{split}.csv'
 
     # Load dataset & convert data type
     user_df = pd.read_csv(data_path + '/' + user_path, index_col=[])
@@ -498,34 +502,34 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
     item_df['rating'] = item_df.apply(lambda x: literal_eval(x['rating']), axis=1)
     item_df['product_degree'] = item_df.apply(lambda x: literal_eval(x['product_degree']), axis=1)
 
-    # FIXME: duplicate 제거하고 sequence별로 잘라서 넣을때 rating 정보는 어떻게?
-    # total_df = pd.DataFrame(columns=['user_id', 'user_sequences', 'user_degree', 'item_sequences', 'item_rating', 'item_degree'])
-    total_df = pd.DataFrame(columns=['user_id', 'user_sequences', 'user_degree', 'item_sequences', 'item_degree'])
+    # Load SPD table => 각 sequence마다 [seq_len_user, seq_len_user] 크기의 SPD matrix를 생성하도록.
+    spd_table = torch.from_numpy(np.load(data_path + '/' + spd_path)).long()
+
+    # Load rating table => 마찬가지로 각 sequence마다 [seq_len_user, seq_len_item] 크기의 rating matrix를 생성하도록.
+    rating_table = pd.read_csv(data_path + '/' + item_rating_path, index_col=[])
+
+    total_df = pd.DataFrame(columns=['user_id', 'user_sequences', 'user_degree', 'item_sequences', 'item_degree', 'item_rating', 'spd_matrix'])
     for _, data in tqdm(user_df.iterrows(), total=user_df.shape[0]):
         current_user = data['user_id']
         current_sequence = data['random_walk_seq']
         current_degree = data['degree']
 
         item_indexer = [int(x) for x in current_sequence]
-        item_list, rating_list, degree_list = [], [], []
+        item_list, degree_list = [], []
 
-        # 1개의 rw sequence에 있는 사용자들이 상호작용한 모든 아이템 가져와서
+        # 1개의 rw sequence에 있는 사용자들이 상호작용한 모든 아이템 & 해당 아이템들의 degree 가져와서
         for index in item_indexer:
             item_list.append(item_df.loc[item_df['user_id'] == index]['product_id'].values[0])
-            # rating_list.append(item_df.loc[item_df['user_id'] == index]['rating'].values[0])
             degree_list.append(item_df.loc[item_df['user_id'] == index]['product_degree'].values[0])
         
         # 이를 flatten하고
         flat_item_list = [item for row in item_list for item in row]
-        # flat_rating_list = [item for row in rating_list for item in row]
         flat_degree_list = [item for row in degree_list for item in row]
         
         # 중복을 제거
         item_list_removed_duplicate = list(set(flat_item_list))
-        # flat_rating_list = list(set(flat_rating_list))
-        # flat_degree_list = list(set(flat_degree_list))
 
-        # flat_item_list 원소와 대응되는 degree를 추출 (TODO: rating은?)
+        # flat_item_list 원소와 대응되는 degree를 추출
         mapping_dict = {}
         for item, degree in zip(flat_item_list, flat_degree_list):
             if item not in mapping_dict:
@@ -539,19 +543,58 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
         # sliced_rating_list = slice_and_pad_list(flat_rating_list, slice_length=item_seq_len)
         sliced_degree_list = slice_and_pad_list(degree_list_removed_duplicate, slice_length=item_seq_len)
 
-        # 자른 list를 dataframe에 담아서 저장
-        for item_list, degree_list in zip(sliced_item_list, sliced_degree_list):
-            total_df.loc[len(total_df)] = [current_user, current_sequence, current_degree, item_list, degree_list]
+        # 현재 user sequence에 해당하는 spd matrix를 생성
+        spd_matrix = spd_table[torch.LongTensor(current_sequence).squeeze(), :][:, torch.LongTensor(current_sequence).squeeze()]
 
-    # df.to_csv(data_path + f'/random_walk_sequence_{split}_interated_items_info.csv', index=False)
-    total_df.to_csv(data_path + f"/sequence_data_{split}.csv", index=False)
+        # 자른 list와 위 정보들을 dataframe에 담아서 저장
+        for item_list, degree_list in zip(sliced_item_list, sliced_degree_list):
+
+            # 현재 선택된 user_seq에 있는 사용자들과 sliced item_seq에 대해 [seq_len_user, seq_len_item] 크기의 rating table 생성
+            rating_matrix = torch.zeros((len(current_sequence), item_seq_len))
+            for i in range(rating_matrix.shape[0]):      # user loop (row)
+                matrix_user = current_sequence[i]
+                for j in range(rating_matrix.shape[1]):  # item loop (col)
+                    matrix_item = item_list[j]
+                    matrix_rating = rating_table.loc[(rating_table['user_id'] == matrix_user) & (rating_table['product_id'] == matrix_item)]['rating'].values
+                    if len(matrix_rating) == 0:
+                        continue
+                    rating_matrix[i][j] = matrix_rating[0]
+            
+            # total_df.loc[len(total_df)] = [torch.LongTensor(current_user), 
+            #                                torch.LongTensor(current_sequence), 
+            #                                torch.LongTensor(current_degree), 
+            #                                torch.LongTensor(item_list), 
+            #                                torch.LongTensor(degree_list), 
+            #                                rating_matrix.to(torch.long), 
+            #                                spd_matrix.to(torch.long)]
+            total_df.loc[len(total_df)] = [current_user, 
+                                            current_sequence, 
+                                            current_degree, 
+                                            item_list, 
+                                            degree_list, 
+                                            rating_matrix.numpy(),
+                                            spd_matrix.numpy()]
+    
+    ########################### FIXME: 초안모델 디버깅용으로 user_id=100 까지만 기록. ###########################
+    ########################### FIXME: 그리고 전체 user_id 쓸때는 파일 이름 변경.    ###########################
+        if current_user == 100:
+            break
+    
+    ## to_csv는 string으로 저장해버려서 array 중간이 ... 으로 저장됨.
+    ## to_parquet, to_feather는 type이 다른 컬럼이 존재할 경우 error.
+    ## pickle 저장이 가장 나을듯.
+    # total_df.to_csv(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.csv", index=False)
+    # total_df.to_parquet(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.parquet", engine='pyarrow',compression='gzip', index=False)
+    with open(data_path + f"/sequence_data_num_user_100_itemseq_{item_seq_len}_{split}.pkl", "wb") as file:
+        pickle.dump(total_df, file)
+    ######################################################################################################
 
 
 if __name__ == "__main__":
     ##### For checking & debugging (will remove later)
 
     data_path = os.getcwd() + '/dataset/' + 'ciao'
-    # generate_input_sequence_data(data_path=data_path, split='train')
+    generate_input_sequence_data(data_path=data_path, split='train', item_seq_len=250)
     # user_sequences, user_degree, item_sequences, item_rating, item_degree = generate_sequence_data(data_path=data_path, split='train')
     # print(user_sequences.shape)
     # quit() 

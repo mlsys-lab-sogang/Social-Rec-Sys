@@ -32,9 +32,13 @@ class DecoderLayer(nn.Module):
         
         if self.last_layer_flag:
             # prediction layer
-            self.linear = nn.Linear(d_model, 1)
+                # [batch_size, seq_len_user, seq_len_item]
+                # encoder의 입력으로 들어온 user들에 대해, decoder에 들어온 item들에 대한 예측된 평점을 출력
+            # self.linear = nn.Linear(d_model, 1)
+            self.last_attn = MultiHeadAttention(d_model=d_model, num_heads=num_heads, last_layer_flag=True)
 
     def forward(self, x, enc_output, trg_mask, src_mask, attn_bias):
+        # print("//////// In Decoder Layer ////////")
         # 1. Perform self attention
         residual = x
         x = self.norm1(x)
@@ -46,14 +50,17 @@ class DecoderLayer(nn.Module):
 
         # 3. Perform Encoder-Decoder cross attention (bias here)
         if enc_output is not None:
-            residual = enc_output
+            residual = x
             
             enc_output = self.norm2(enc_output)
             x = self.norm2(x)
 
+            # print("     Start cross attention....")
+            # print(f"     enc_output: {enc_output.shape} /// self-attn output: {x.shape} /// src_mask: {src_mask.shape}")
             x = self.cross_attention(Q=x, K=enc_output, V=enc_output, mask=src_mask, attn_bias=attn_bias)
 
             # 4. Add & Norm
+            # print(f"********* After cross attn: x {x.shape}, residual {residual.shape}")
             x = self.dropout2(x)
             x = x + residual
             
@@ -70,5 +77,7 @@ class DecoderLayer(nn.Module):
 
         else:
             # 7. last layer returns predicted ratings.
-            x = self.linear(x)
+            # x = self.linear(x)
+            # print(f"Entering Last Layer: x {x.shape}    enc_output {enc_output.shape}")
+            x = self.last_attn(Q=x, K=enc_output, V=enc_output, mask=src_mask, attn_bias=attn_bias)
             return x

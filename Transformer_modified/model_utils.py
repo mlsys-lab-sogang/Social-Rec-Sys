@@ -56,8 +56,8 @@ def generate_attn_pad_mask(seq_q, seq_k):
         original data -> do not apply mask
     """
     # FIXME: (230911) 현재 mask 생성을 위한 입력으로 들어오는 shape은 다음과 같음.
-        # Enc에선 [batch_size, seq_length]
-        # Dec에선 [batch_size, seq_length, interacted_items]
+        # Enc에선 [batch_size, seq_len_user, seq_len_user]
+        # Dec에선 [batch_size, seq_len_item, seq_len_item]
     # print(seq_q.size())
     # print(seq_k.size())
     batch_size, len_q = seq_q.size()

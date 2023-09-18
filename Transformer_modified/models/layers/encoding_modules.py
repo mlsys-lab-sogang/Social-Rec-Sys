@@ -36,8 +36,8 @@ class SocialNodeEncoder(nn.Module):
             batched_data["user_seq"],
             batched_data["user_degree"]
         )
-        print(f"Input seq min: {torch.min(x)}")
-        print(f"Input seq max: {torch.max(x)}")
+        # print(f"Input seq min: {torch.min(x)}")
+        # print(f"Input seq max: {torch.max(x)}")
 
         # Generate user_id embedding vector
         user_embedding = self.node_encoder(x)
@@ -55,20 +55,12 @@ class SpatialEncoder(nn.Module):
     """
     Embed SPD(shortest path distance) information to dense representation, using pre-computed SPD matrix.
     (similar to spatial encoding)
-        data_path: path to dataset
-        spd_file: pre-computed SPD file (.npy)
-    
-    ########### TODO: ###########
-    현재 시퀀스에 해당하는 SPD table을 생성하는 부분을 dataset에서 넘겨주도록 변경.
-    #############################
+        num_heads: number of heads in multi-head attention
+        num_nodes: total number of users in social graph. (before splitting)
     """
-    def __init__(self, data_path, spd_file, num_heads):
+    def __init__(self, num_heads, num_nodes):
         super(SpatialEncoder, self).__init__()
-
-        spd_table = data_path + '/' + spd_file
-        self.spatial_pos_table = torch.from_numpy(np.load(spd_table)).long()    # (num_nodes, num_nodes) -> (7317, 7317)
         
-        num_nodes = self.spatial_pos_table.size()[0]
         self.num_heads = num_heads
         
         # # lookup table은 spatial-pos table에 있는 거리 값을 dense vector representation으로 변환
@@ -80,26 +72,12 @@ class SpatialEncoder(nn.Module):
         batched_data: batched data from DataLoader
         """
 
-        # [batch_size, seq_length]
-        user_seq = batched_data["user_seq"]
-                
-        # 각 batch마다 들어있는 user sequence에 대한 spd matrix를 생성
-            # 각 batch마다 들어있는 형태는 [1, seq_length]
-        output_list = []
-        for seq in user_seq:
-            spd_matrix = self.spatial_pos_table[seq.squeeze(), :][:, seq.squeeze()]
-            output_list.append(spd_matrix)
-        
-        # 생성한 결과를 batch_size만큼 stack
-            # [seq_length, seq_length] * batch_size ==> [batch_size, seq_length, seq_length]
-        total_output = torch.stack(output_list, dim=0)
+        # 현재 user sequence에 있는 사용자들에 대한 SPD matrix는 Dataset class에서 pre-computed되어 있음.
+            # [batch_size, seq_length_user, seq_length_user]
+        spd_matrix = batched_data['spd_matrix']
 
-        # # 최종적으로 embedding을 거쳐서 attn_bias 생성
-        #     # [batch_size, seq_length, seq_length] ==> [batch_size, seq_length, seq_length, num_heads]
-        # attn_bias = self.spatial_pos_encoder(total_output)
-        
-        # [batch_size, seq_length, seq_length] ==> [batch_size, seq_length, seq_length, num_heads] 
-        attn_bias = total_output.repeat(self.num_heads, 1, 1, 1).permute(1, 2, 3, 0)
+        # [batch_size, seq_length, seq_length] ==> [num_heads, batch_size, seq_length, seq_length] ==> [batch_size, seq_length, seq_length, num_heads]
+        attn_bias = spd_matrix.repeat(self.num_heads, 1, 1, 1).permute(1, 2, 3, 0)
 
         return attn_bias
 
@@ -130,7 +108,7 @@ class ItemNodeEncoder(nn.Module):
         # TODO: Dataset 에서 item_degree 정보도 batch data에 함께 담아주도록 수정 & item은 [batch_size, seq_length, interacted_item] 이었는데, 이를 [batch_size, seq_length, interacted_item*seq_length]
         # 즉, 시퀀스마다 고정된 수를 보는게 아니라 전체를 1개로 flatten [seq_length*interacted_item] 해서 전달
         x, degree = (
-            batched_data['item_seq'],
+            batched_data['item_list'],
             batched_data['item_degree']
         )
 
@@ -150,21 +128,31 @@ class RatingEncoder(nn.Module):
     """
     Encoder item's rating information to dense representation, using `batched_data['rating']`.
     """
-    def __init__(self):
+    def __init__(self, num_heads):
         super(RatingEncoder, self).__init__()
+
+        # TODO: Use embedding table later? embedding shape [num_rating, d_model] ?
+        self.num_heads = num_heads
 
     def forward(self, batched_data):
         """
         batched_data: batched data from DataLoader
         """
 
-        item_seq, item_rating = (
-            batched_data['item_seq'],
-            batched_data['rating']
-        )
-        # print(item_rating.shape)
+        # [batch_size, seq_length_user, seq_length_item] 
+        ###### FIXME: 정답인 rating 정보를 바로 주는건 말이 X. 따라서 상호작용 여부(0 or 1)로 주자.       
+        item_rating = batched_data['item_rating']
+        item_rating = torch.where(item_rating == 0, 0, 1)
+        ######
 
-        return item_rating
+        # Q*K^T 를 수행하면 [batch_size, num_heads, seq_length_item, seg_length_user]
+        # 여기에 bias term으로 더해주므로 [batch_size, seq_length_user, seq_length_item] ==> [batch_size, num_heads, seq_length_user, seq_length_item] 이 되어야 함. -> decoder 부분에서 수행
+            # [batch_size, seq_length_user, seq_length_item] 
+            # ==> [num_heads, batch_size, seq_length_user, seq_length_item]
+            # ==> [batch_size, seq_length_user, seq_length_item, num_heads]
+        attn_bias = item_rating.repeat(self.num_heads, 1, 1, 1).permute(1, 2, 3, 0)
+
+        return attn_bias
 
 
 # if __name__ == "__main__":
