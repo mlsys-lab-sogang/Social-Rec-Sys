@@ -67,10 +67,13 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
     trust_file = loadmat(data_path + '/' + 'trustnetwork.mat')
     trust_file = trust_file['trustnetwork'].astype(np.int64)    
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
-
+    # print("before reset and filter")
+    # quit()
     ### data filtering & id re-arrange ###
     rating_df, trust_df = reset_and_filter_data(rating_df, trust_df)
     ### data filtering & id re-arrange ###
+    # print("After reset and filter")
+    # quit()
 
     ### train test split TODO: Change equation for split later on
     # TODO: make random_state a seed varaiable
@@ -128,12 +131,15 @@ def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.D
     for item in rating_df['product_id'].unique().tolist():
         mapping_table_item[item] = new_id_item
         new_id_item += 1
-
+    # print("before replace")
     # Replace user id & item id, using id mapping table.
+    # print(rating_df.head())
+    # print(mapping_table_item)
     rating_df = rating_df.replace({'user_id': mapping_table_user, 'product_id':mapping_table_item})
+    # print("after rating")
     trust_df = trust_df.replace({'user_id_1': mapping_table_user, 'user_id_2': mapping_table_user})
-
-    return rating_df, trust_df
+    # print("after repl")
+    return rating_df, trust_df, 
 
 def generate_social_dataset(data_path:str, save_flag:bool = False, split:str='train'):
     """
@@ -274,6 +280,36 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
     user_item_dataframe.to_csv(data_path + f'/user_item_interaction_item_length_{item_length}.csv', index=False)
 
     return user_item_dataframe
+
+def generate_interacted_users_table(data_path:str, item_length=4, split:str='train') -> pd.DataFrame:
+    """
+    Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
+
+    Args:
+        data_path: path to dataset
+        item_length: number of interacted items to fetch
+    """
+    
+    if split=='all':
+        rating_file = data_path + '/rating.csv'
+    else:
+        rating_file = data_path + f'/rating_{split}.csv'
+        
+    dataframe = pd.read_csv(rating_file, index_col=[])
+
+    user_item_dataframe = dataframe.groupby('product_id').agg({'user_id': list, 'rating': list}).reset_index()
+
+    # This is for indexing 0, where random walk sequence has padded with 0.
+        # minimum number of interacted item is 4(before dataset splitting), so pad it to 4.
+    # empty_data = [0, [0 for _ in range(4)], [0 for _ in range(4)], [0 for _ in range(4)]]
+    # user_item_dataframe.loc[-1] = empty_data
+    # user_item_dataframe.index = user_item_dataframe.index + 1
+    user_item_dataframe.sort_index(inplace=True)
+    # user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
+    user_item_dataframe.to_csv(data_path + f'/item_user_interaction_{split}.csv', index=False)
+
+    return user_item_dataframe
+
 
 
 def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, seed=False, split:str='train') -> list:
@@ -566,12 +602,13 @@ if __name__ == "__main__":
     generate_input_sequence_data(data_path=data_path, split='train', item_seq_len=250)
     # user_sequences, user_degree, item_sequences, item_rating, item_degree = generate_sequence_data(data_path=data_path, split='train')
     # print(user_sequences.shape)
-    quit() 
+    # quit() 
     
-    data_path = os.getcwd() + '/dataset/' + 'ciao' 
-    rating_file = data_path + '/rating_test.csv'
+    # data_path = os.getcwd() + '/dataset/' + 'ciao' 
+    # rating_file = data_path + '/rating_test.csv'
     # generate_social_dataset(data_path, save_flag=True, split='train')
-    # mat_to_csv(data_path)
+    mat_to_csv(data_path)
+    quit()
     # print(generate_interacted_items_table(data_path, all=True))
     # print(generate_sequence_data('ciao')[0][0])
     interacted_items = list(map(len, generate_sequence_data("ciao")))
