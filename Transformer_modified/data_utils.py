@@ -508,7 +508,11 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
         sliced_degree_list = slice_and_pad_list(degree_list_removed_duplicate, slice_length=item_seq_len)
 
         # 현재 user sequence에 해당하는 spd matrix를 생성
-        spd_matrix = spd_table[torch.LongTensor(current_sequence).squeeze(), :][:, torch.LongTensor(current_sequence).squeeze()]
+            # IndexError: index 7317 is out of bounds for dimension 0 with size 7317
+            # spd matrix index가 0 ~ 7316 
+            # sequence (user_id)가 1 ~ 7317
+            # 따라서 -1을 해줘야 한다.
+        spd_matrix = spd_table[torch.LongTensor(current_sequence).squeeze() - 1, :][:, torch.LongTensor(current_sequence).squeeze() - 1]
 
         # 자른 list와 위 정보들을 dataframe에 담아서 저장
         for item_list, degree_list in zip(sliced_item_list, sliced_degree_list):
@@ -541,15 +545,16 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
     
     ########################### FIXME: 초안모델 디버깅용으로 user_id=100 까지만 기록. ###########################
     ########################### FIXME: 그리고 전체 user_id 쓸때는 파일 이름 변경.    ###########################
-        if current_user == 100:
-            break
+        # if current_user == 100:
+        #     break
     
     ## to_csv는 string으로 저장해버려서 array 중간이 ... 으로 저장됨.
     ## to_parquet, to_feather는 type이 다른 컬럼이 존재할 경우 error.
     ## pickle 저장이 가장 나을듯.
     # total_df.to_csv(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.csv", index=False)
     # total_df.to_parquet(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.parquet", engine='pyarrow',compression='gzip', index=False)
-    with open(data_path + f"/sequence_data_num_user_100_itemseq_{item_seq_len}_{split}.pkl", "wb") as file:
+    # with open(data_path + f"/sequence_data_num_user_100_itemseq_{item_seq_len}_{split}.pkl", "wb") as file:
+    with open(data_path + f"/sequence_data_itemlen_{item_seq_len}_{split}.pkl", "wb") as file:
         pickle.dump(total_df, file)
     ######################################################################################################
 
