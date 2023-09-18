@@ -57,7 +57,23 @@ def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_de
 
             outputs = model(batch)
 
-            loss = criterion(outputs.float(), batch['item_rating'].float())
+            # loss = criterion(outputs.float(), batch['item_rating'].float())
+            # compute loss
+            # FIXME: 
+                # 현재 target(batch['item_rating'])은 0이 많이 포함되어 있는 sparse한 rating matrix로, shape가 [seq_len_user, seq_len_item] (batch dim 제외)
+                # model output 또한 마찬가지로 shape가 [seq_len_user, seq_len_item].
+                # 단순히 이 둘의 MSELoss를 계산하는 경우, known rating에 대한 제곱오차만을 계산하는 것이 아닌 unknown rating(0)에 대한 제곱오차도 계산하게 됨.
+                # 따라서 Masked MSELoss를 사용
+                # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산하게 된다.
+            # loss = criterion(outputs.float(), batch['item_rating'].float())
+            mask = (batch['item_rating'] != 0).float()
+            # print(torch.count_nonzero(batch['item_rating']))
+
+            squared_diff = (outputs - batch['item_rating'])**2 * mask
+            # print(torch.count_nonzero(squared_diff))
+
+            loss = torch.sum(squared_diff) / torch.sum(mask)
+
             # eval_losses.update(loss.mean())
             eval_losses.update(loss)
 
@@ -124,20 +140,37 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
 
             # forward pass
             outputs = model(batch)
+            # print('\n')
+            # print(outputs)
+            # print(torch.count_nonzero(outputs))
 
             # [batch_size, seq_len_item, seq_len_user] : model output
             # [batch_size, seq_len_user, seq_len_item] : target인 rating matrix 
 
-            # compute loss 
-            loss = criterion(outputs.float(), batch['item_rating'].float())
+            # compute loss
+            # FIXME: 
+                # 현재 target(batch['item_rating'])은 0이 많이 포함되어 있는 sparse한 rating matrix로, shape가 [seq_len_user, seq_len_item] (batch dim 제외)
+                # model output 또한 마찬가지로 shape가 [seq_len_user, seq_len_item].
+                # 단순히 이 둘의 MSELoss를 계산하는 경우, known rating에 대한 제곱오차만을 계산하는 것이 아닌 unknown rating(0)에 대한 제곱오차도 계산하게 됨.
+                # 따라서 Masked MSELoss를 사용
+                # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산하게 된다.
+            # loss = criterion(outputs.float(), batch['item_rating'].float())
+            mask = (batch['item_rating'] != 0).float()
+            # print(torch.count_nonzero(batch['item_rating']))
+
+            squared_diff = (outputs - batch['item_rating'])**2 * mask
+            # print(torch.count_nonzero(squared_diff))
+
+            loss = torch.sum(squared_diff) / torch.sum(mask)
+
+            # print(loss)
+            # quit()
 
             loss.backward()
             nn.utils.clip_grad_value_(model.parameters(), clip_value=1) # Gradient Clipping
             optimizer.step()
 
-            ##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
             lr_scheduler.step()
-            ##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
 
             losses.update(loss)
             epoch_iterator.set_description(
@@ -259,7 +292,7 @@ def main():
     log_path = os.path.join(log_dir,'{}.{}.log'.format(args.mode, args.name))
     redirect_stdout(open(log_path, 'w'))
 
-    print(json.dumps([model_config, training_config], indent = 4))
+    # print(json.dumps([model_config, training_config], indent = 4))
 
     ###  set the random seeds for deterministic results. ####
     SEED = args.seed
@@ -286,9 +319,9 @@ def main():
 
 
     #model = model.cuda()
-    print(model)
-    print(f"parameter_size: {[weight.size() for weight in model.parameters()]}", flush = True)
-    print(f"num_parameter: {np.sum([np.prod(weight.size()) for weight in model.parameters()])}", flush = True)
+    # print(model)
+    # print(f"parameter_size: {[weight.size() for weight in model.parameters()]}", flush = True)
+    # print(f"num_parameter: {np.sum([np.prod(weight.size()) for weight in model.parameters()])}", flush = True)
 
     device_ids = list(range(torch.cuda.device_count()))
     print(f"GPU list: {device_ids}")
@@ -342,6 +375,7 @@ def main():
         train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
         # train(model, optimizer, ds_iter, training_config, criterion)
 
+    quit()
     ### eval ###
     if os.path.exists(checkpoint_path) and checkpoint_path != os.getcwd() + '/checkpoints/test.model':
         checkpoint = torch.load(checkpoint_path)
