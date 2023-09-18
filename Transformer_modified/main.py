@@ -38,16 +38,28 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+def MaskedMSELoss(target, prediction):
+    """
+    Compute Masked MSELoss
+    """
+    mask = (target != 0).float()
+    squared_diff = (prediction - target)**2 * mask
+    loss = torch.sum(squared_diff) / torch.sum(mask)
 
-def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_dev_rmse, init_t, criterion):
+    return loss
+
+def valid(model, ds_iter, epoch, training_config, checkpoint_path, global_step, best_dev_rmse, init_t, criterion):
     val_rmse = []
     val_mae = []
     eval_losses = AverageMeter()
     model.eval()
     with torch.no_grad():
-        for dev_step_idx in range(training_config["num_eval_steps"]):
-            _, batch = next(ds_iter['dev'])
-
+        epoch_iterator = tqdm(ds_iter['dev'],
+                              desc="Validating (X / X Steps) (loss=X.X)",
+                              bar_format="{l_bar}{r_bar}",
+                              dynamic_ncols=True,
+                              leave=False)
+        for step, batch in enumerate(epoch_iterator):
             batch['user_seq'] = batch['user_seq'].cuda()
             batch['user_degree'] = batch['user_degree'].cuda()
             batch['item_list'] = batch['item_list'].cuda()
@@ -58,26 +70,18 @@ def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_de
             outputs = model(batch)
 
             # loss = criterion(outputs.float(), batch['item_rating'].float())
-            # compute loss
-            # FIXME: 
-                # 현재 target(batch['item_rating'])은 0이 많이 포함되어 있는 sparse한 rating matrix로, shape가 [seq_len_user, seq_len_item] (batch dim 제외)
+            # FIXME:
+                # 현재 target(batch['item_rating])은 0이 많이 포함되어 있는 sparse한 rating matrix로, shape가 [seq_len_user, seq_len_item] (batch dim 제외)
                 # model output 또한 마찬가지로 shape가 [seq_len_user, seq_len_item].
                 # 단순히 이 둘의 MSELoss를 계산하는 경우, known rating에 대한 제곱오차만을 계산하는 것이 아닌 unknown rating(0)에 대한 제곱오차도 계산하게 됨.
-                # 따라서 Masked MSELoss를 사용
-                # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산하게 된다.
-            # loss = criterion(outputs.float(), batch['item_rating'].float())
+                # 따라서 Masked MSELoss를 사용.
+                # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산.
             mask = (batch['item_rating'] != 0).float()
-            # print(torch.count_nonzero(batch['item_rating']))
-
             squared_diff = (outputs - batch['item_rating'])**2 * mask
-            # print(torch.count_nonzero(squared_diff))
-
             loss = torch.sum(squared_diff) / torch.sum(mask)
 
-            # eval_losses.update(loss.mean())
             eval_losses.update(loss)
 
-            # Compute RMSE & MAE
             mse = F.mse_loss(outputs, batch['item_rating'], reduction='none')
             rmse = torch.sqrt(mse.mean())
             mae = F.l1_loss(outputs, batch['item_rating'], reduction='mean')
@@ -85,23 +89,28 @@ def valid(model, ds_iter, training_config, checkpoint_path, global_step, best_de
             val_rmse.append(rmse)
             val_mae.append(mae)
 
+            epoch_iterator.set_description(
+                        "Validating (%d / %d Steps) (loss=%2.5f)" % (step, len(epoch_iterator), eval_losses.val))
+        
         total_rmse = sum(val_rmse) / len(val_rmse)
         total_mae = sum(val_mae) / len(val_mae)
-        if total_rmse > best_dev_rmse:
-            best_dev_accu = total_rmse
+
+        if total_rmse < best_dev_rmse:
+            best_dev_rmse = total_rmse
             torch.save({"model_state_dict":model.state_dict()}, checkpoint_path)
-            print('best model saved: step = ',global_step, 'dev RMSE = ',total_rmse, 'dev MAE = ', total_mae)
+            print('best model saved: step = ',global_step, 'epoch = ', epoch,'dev RMSE = ',total_rmse.item(), 'dev MAE = ', total_mae.item())
 
     print("\n[Validation Results]")
     print("Global Steps: %d" % global_step)
+    print("Epoch: %d" % epoch)
     print("Valid Loss: %2.5f" % eval_losses.avg)
     print("Valid RMSE: %2.5f" % total_rmse)
     print("Valid MAE: %2.5f" % total_mae)
     print("time stamp: {}".format((time.time()-init_t)))
+    print("\n")
 
-    return best_dev_accu
+    return best_dev_rmse
 
-##################### FIXME: 스케줄러 ValueError -> 우선은 제외함. #####################
 def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
 # def train(model, optimizer, ds_iter, training_config, criterion):
 
@@ -110,7 +119,7 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
     losses = AverageMeter()
 
     checkpoint_path = training_config['checkpoint_path']
-    best_dev_rmse = 0
+    best_dev_rmse = 9999
 
     total_epochs = training_config["num_epochs"]
     
@@ -140,12 +149,6 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
 
             # forward pass
             outputs = model(batch)
-            # print('\n')
-            # print(outputs)
-            # print(torch.count_nonzero(outputs))
-
-            # [batch_size, seq_len_item, seq_len_user] : model output
-            # [batch_size, seq_len_user, seq_len_item] : target인 rating matrix 
 
             # compute loss
             # FIXME: 
@@ -156,15 +159,10 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
                 # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산하게 된다.
             # loss = criterion(outputs.float(), batch['item_rating'].float())
             mask = (batch['item_rating'] != 0).float()
-            # print(torch.count_nonzero(batch['item_rating']))
 
             squared_diff = (outputs - batch['item_rating'])**2 * mask
-            # print(torch.count_nonzero(squared_diff))
 
             loss = torch.sum(squared_diff) / torch.sum(mask)
-
-            # print(loss)
-            # quit()
 
             loss.backward()
             nn.utils.clip_grad_value_(model.parameters(), clip_value=1) # Gradient Clipping
@@ -175,18 +173,20 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
             losses.update(loss)
             epoch_iterator.set_description(
                         "Training (%d / %d Steps) (loss=%2.5f)" % (step, len(epoch_iterator), losses.val))
+        # print(f"Epoch {epoch} Finished (Average Loss: {losses.avg:.4f})")
+
+            # Validation step
+            if (step + 1) % training_config["eval_frequency"] == 0:
+                end.record()
+                torch.cuda.synchronize()
+                total_time += (start.elapsed_time(end))
+                best_dev_rmse = valid(model, ds_iter, epoch, training_config, checkpoint_path, step, best_dev_rmse, init_t, criterion)
+                model.train()
+                start.record()
+
         print(f"Epoch {epoch} Finished (Average Loss: {losses.avg:.4f})")
 
-        # Validation step
-        if (step + 1) % training_config["eval_frequency"] == 0:
-            end.record()
-            torch.cuda.synchronize()
-            total_time += (start.elapsed_time(end))
-            best_dev_rmse = valid(model, ds_iter, training_config, checkpoint_path, step, best_dev_rmse, init_t, criterion)
-            model.train()
-            start.record()
-
-
+    print('\n [Train Finished]')
     print("total training time (s): {}".format((time.time()-init_t)))
     print("total training time (ms): {}".format(total_time))
     print("peak memory usage (MB): {}".format(torch.cuda.memory_stats()['active_bytes.all.peak']>>20))
@@ -205,7 +205,13 @@ def eval(model, ds_iter, criterion):
     end = torch.cuda.Event(enable_timing=True)
     start.record()
     with torch.no_grad():
-        for _, batch in ds_iter['test']:
+        epoch_iterator = tqdm(ds_iter['test'],
+                        desc="Validating (X / X Steps) (loss=X.X)",
+                        bar_format="{l_bar}{r_bar}",
+                        dynamic_ncols=True,
+                        leave=False)
+        # for _, batch in ds_iter['test']:
+        for step, batch in enumerate(epoch_iterator):
             
             # 모델의 입력은 batch 그 자체, batch는 Dict이며 따라서 Dict 안의 tensor들을 device로 load.
             batch['user_seq'] = batch['user_seq'].cuda()
@@ -216,7 +222,17 @@ def eval(model, ds_iter, criterion):
             batch['spd_matrix'] = batch['spd_matrix'].cuda()
             outputs = model(batch)
 
-            loss = criterion(outputs.float(), batch['item_rating'].float())
+            # loss = criterion(outputs.float(), batch['item_rating'].float())
+            # FIXME: 
+                # 현재 target(batch['item_rating'])은 0이 많이 포함되어 있는 sparse한 rating matrix로, shape가 [seq_len_user, seq_len_item] (batch dim 제외)
+                # model output 또한 마찬가지로 shape가 [seq_len_user, seq_len_item].
+                # 단순히 이 둘의 MSELoss를 계산하는 경우, known rating에 대한 제곱오차만을 계산하는 것이 아닌 unknown rating(0)에 대한 제곱오차도 계산하게 됨.
+                # 따라서 Masked MSELoss를 사용
+                # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산하게 된다.
+            mask = (batch['item_rating'] != 0).float()
+            squared_diff = (outputs - batch['item_rating'])**2 * mask
+            loss = torch.sum(squared_diff) / torch.sum(mask)
+
             # eval_losses.update(loss.mean())
             eval_losses.update(loss)
             
@@ -227,13 +243,16 @@ def eval(model, ds_iter, criterion):
             val_rmse.append(rmse)
             val_mae.append(mae)
 
+            epoch_iterator.set_description(
+                        "Evaluating (%d / %d Steps) (loss=%2.5f)" % (step, len(epoch_iterator), eval_losses.val))
+
         total_rmse = sum(val_rmse) / len(val_rmse)
         total_mae = sum(val_mae) / len(val_mae)
 
     end.record()
     torch.cuda.synchronize()
 
-    print("[Evaluation Results]")
+    print("\n [Evaluation Results]")
     print("Loss: %2.5f" % eval_losses.avg)
     print("RMSE: %2.5f" % total_rmse)
     print("MAE: %2.5f" % total_mae)
@@ -252,20 +271,6 @@ def get_args():
                         help="load ./checkpoints/model_name.model to evaluation")
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--name', type=str, help="checkpoint model name")
-    # parser.add_argument('--batch_size', type=int, default=64)
-    # parser.add_argument('--n_layers', type=int, default=12)
-    # parser.add_argument('--lr', type=float, default=2e-4)
-    # parser.add_argument('--warmup', type=int, default=10000)
-    # parser.add_argument('--seed', type=int, default=1)
-    # parser.add_argument('--save_dir', type=str, default='./ckpts')
-    # parser.add_argument('--hidden_size', type=int, default=128)
-    # parser.add_argument('--ff_hidden_size', type=int, default=512)
-    # parser.add_argument('--num_head', type=int, default=4)
-    # parser.add_argument('--encoder_seq_length', type=int, default=20)
-    # parser.add_argument('--decoder_seq_length', type=int, default=20)
-    # parser.add_argument('--total_step', type=int, default=100000)
-    # parser.add_argument('--optimizer', type=str, default='adam')
-    # parser.add_argument('--dropout', type=float, default=0.1)
     args = parser.parse_args()
     return args
 
@@ -329,21 +334,15 @@ def main():
 
     ### data preparation ###
 
-    # ds_iter = {
-    #         "train":DataLoader(MyDataset(f"./dataset/{args.dataset}.train.pickle", True), batch_size = training_config["batch_size"], shuffle=True),
-    #         "dev":enumerate(DataLoader(MyDataset(f"./data/{args.dataset}.dev.pickle", True), batch_size = training_config["batch_size"]), shuffle=False),
-    #         "test":enumerate(DataLoader(MyDataset(f"./data/{args.dataset}.test.pickle", False), batch_size = training_config["batch_size"]), shuffle=False),
-    # }
-
-    ### FIXME: 전체 데이터에 대해 파일 생성이 오래 걸림 (현재 시퀀스의 rating matrix 생성하는 부분이 문제로 보임) ==> rw sequence의 시작 노드 번호가 user_id=100 까지만 생성한 것으로 test.
+    ### FIXME: 전체 데이터에 대해 파일 생성이 오래 걸림 (현재 시퀀스의 rating matrix 생성하는 부분이 문제로 보임)
     train_ds = MyDataset(dataset=args.dataset, split='train')
     dev_ds = MyDataset(dataset=args.dataset, split='valid')
     test_ds = MyDataset(dataset=args.dataset, split='test')
 
     ds_iter = {
             "train":DataLoader(train_ds, batch_size = training_config["batch_size"], shuffle=True),
-            "dev":enumerate(DataLoader(dev_ds, batch_size = training_config["batch_size"], shuffle=True)),
-            "test":enumerate(DataLoader(test_ds, batch_size = training_config["batch_size"], shuffle=False))
+            "dev":DataLoader(dev_ds, batch_size = training_config["batch_size"], shuffle=True),
+            "test":DataLoader(test_ds, batch_size = training_config["batch_size"], shuffle=False)
     }
 
     ### training preparation ###
@@ -360,12 +359,20 @@ def main():
     total_train_samples = len(train_ds)
     training_config["num_train_steps"] = math.ceil(total_train_samples / total_epochs)
     
+    # lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    #     optimizer = optimizer,
+    #     max_lr = training_config["learning_rate"],
+    #     pct_start = training_config["warmup"] / training_config["num_train_steps"],
+    #     anneal_strategy = training_config["lr_decay"],
+    #     total_steps = training_config["num_train_steps"]
+    # )
     lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer = optimizer,
         max_lr = training_config["learning_rate"],
         pct_start = training_config["warmup"] / training_config["num_train_steps"],
         anneal_strategy = training_config["lr_decay"],
-        total_steps = training_config["num_train_steps"]
+        epochs = training_config["num_epochs"],
+        steps_per_epoch = 2 * len(ds_iter['train'])
     )
 
     criterion = nn.MSELoss()
@@ -375,7 +382,6 @@ def main():
         train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
         # train(model, optimizer, ds_iter, training_config, criterion)
 
-    quit()
     ### eval ###
     if os.path.exists(checkpoint_path) and checkpoint_path != os.getcwd() + '/checkpoints/test.model':
         checkpoint = torch.load(checkpoint_path)
