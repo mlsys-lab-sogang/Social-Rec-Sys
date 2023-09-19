@@ -1,10 +1,10 @@
 
 ciao={  
-         # dataset의 전체 길이 (기록 및 확인용)
+         # dataset의 전체 길이 (기록 및 확인용) (train:val:test = 8:1:1)
          "dataset":{
             "train":53393,
             "dev":8489,
-            "test":38000,
+            "test":8428,
          },
          "model":{
             "num_user": 7317,
@@ -26,7 +26,7 @@ ciao={
             "lr_decay":"linear",
             "weight_decay":0,
             "eval_frequency":400, 
-            "num_epochs":10,
+            "num_epochs":100,
             "num_eval_steps":849,   # total_valid_sample / total_epoch
             "patience":10, 
          },
