@@ -114,15 +114,16 @@ def valid(model, ds_iter, epoch, training_config, checkpoint_path, global_step, 
 def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
 # def train(model, optimizer, ds_iter, training_config, criterion):
 
+    # TODO: Epoch당 loss, RMSE, MAE 추적 => TensorBoard 또는 파일 저장을 통해 tracing할 수 있도록.
     logger.info("***** Running training *****")
     logger.info("  Total steps = %d", training_config["num_train_steps"])
     losses = AverageMeter()
 
     checkpoint_path = training_config['checkpoint_path']
-    best_dev_rmse = 9999
+    best_dev_rmse = 9999.0
 
     total_epochs = training_config["num_epochs"]
-    
+
     model.train()
     init_t = time.time()
     total_time = 0
@@ -297,7 +298,7 @@ def main():
     log_path = os.path.join(log_dir,'{}.{}.log'.format(args.mode, args.name))
     redirect_stdout(open(log_path, 'w'))
 
-    # print(json.dumps([model_config, training_config], indent = 4))
+    print(json.dumps([model_config, training_config], indent = 4))
 
     ###  set the random seeds for deterministic results. ####
     SEED = args.seed
@@ -324,9 +325,9 @@ def main():
 
 
     #model = model.cuda()
-    # print(model)
-    # print(f"parameter_size: {[weight.size() for weight in model.parameters()]}", flush = True)
-    # print(f"num_parameter: {np.sum([np.prod(weight.size()) for weight in model.parameters()])}", flush = True)
+    print(model)
+    print(f"parameter_size: {[weight.size() for weight in model.parameters()]}", flush = True)
+    print(f"num_parameter: {np.sum([np.prod(weight.size()) for weight in model.parameters()])}", flush = True)
 
     device_ids = list(range(torch.cuda.device_count()))
     print(f"GPU list: {device_ids}")
