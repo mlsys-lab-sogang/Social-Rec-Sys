@@ -26,7 +26,16 @@ class ScaledDotProductAttention(nn.Module):
 
         # 2. Apply attention mask
         if mask is not None:
+            # print(score.shape)
+            # print(mask.shape)
+            # print("##### Mask #####")
+            # print(mask[0][:][0][0].data)
+
+            # print("\n##### Q * K 결과 #####")
+            # print(score[0][:][0][0].data)
             score = score.masked_fill(mask == 0, -10000)
+            # print("\n##### Q * K 에 masking 결과 #####")
+            # print(score[0][:][0][0].data)
 
         # 3. Apply attention bias (spatial encoding)
         # TODO: add attention bias before softmax
@@ -42,14 +51,23 @@ class ScaledDotProductAttention(nn.Module):
 
         # 3. Pass score to softmax for making [0, 1] range.
         score = torch.softmax(score, dim=-1)
+        # print("\n##### Q * K + masking 에 softmax 결과 #####")
+        # print(score[0][:][0][0].data)
+        # quit()
 
         # 4. Dot product with V
             # [batch_size, num_heads, seq_length, d_tensor]
+        # print("\n##### 기존 V값 #####")
+        # print(V[0][:][0][0].data)
         V = torch.matmul(score, V)
+        # print("\n##### softmax(QK)*V 결과 #####")
+        # print(V[0][:][0][0].data)
+        # quit()
 
         # print(f"////// After (Q*KT)V: score {score.shape} V(return) {V.shape}")
 
-        return V, score
+        # return V, score
+        return V
 
 class MultiHeadAttention(nn.Module):
     """
@@ -87,7 +105,8 @@ class MultiHeadAttention(nn.Module):
         ####### Decoder의 마지막 layer (cross-attn)는 rating prediction을 수행
         if not self.last_layer_flag:
             # 3. Perform scaled-dot product attention
-            out, attn = self.attention(Q, K, V, mask, attn_bias)
+            # out, attn = self.attention(Q, K, V, mask, attn_bias)
+            out = self.attention(Q, K, V, mask, attn_bias)
         else:
             # print(f"        Last Layer shapes : Q ({Q.shape})   K ({K.shape})   V ({V.shape})")
             out = self.attention(Q, K, V, mask, attn_bias, self.last_layer_flag)

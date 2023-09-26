@@ -40,9 +40,12 @@ class DecoderLayer(nn.Module):
     def forward(self, x, enc_output, trg_mask, src_mask, attn_bias):
         # print("//////// In Decoder Layer ////////")
         # 1. Perform self attention
+
+        # print('\n[[[[[[[[ Decoder Self Attention 시작 ]]]]]]]]')
         residual = x
         x = self.norm1(x)
         x = self.attention(Q=x, K=x, V=x, mask=trg_mask, attn_bias=None)
+        # quit()
 
         # 2. Add & Norm
         x = self.dropout1(x)
@@ -50,6 +53,7 @@ class DecoderLayer(nn.Module):
 
         # 3. Perform Encoder-Decoder cross attention (bias here)
         if enc_output is not None:
+            # print('\n[[[[[[[[ Cross Attention 시작 ]]]]]]]]')
             residual = x
             
             enc_output = self.norm2(enc_output)
@@ -76,6 +80,7 @@ class DecoderLayer(nn.Module):
             return x
 
         else:
+            # print('\n[[[[[[[[ Last layer 진입 ]]]]]]]]')
             # 7. last layer returns predicted ratings.
             # x = self.linear(x)
             # print(f"Entering Last Layer: x {x.shape}    enc_output {enc_output.shape}")
