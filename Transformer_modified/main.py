@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from utils import redirect_stdout
 from config import Config
@@ -114,7 +115,7 @@ def valid(model, ds_iter, epoch, checkpoint_path, global_step, best_dev_rmse, be
 
     return eval_losses.avg, best_dev_rmse, best_dev_mae, total_rmse, total_mae
 
-def train(model, optimizer, lr_scheduler, ds_iter, training_config):
+def train(model, optimizer, lr_scheduler, ds_iter, training_config, writer):
 # def train(model, optimizer, ds_iter, training_config, criterion):
 
     # TODO: Epoch당 loss, RMSE, MAE 추적 => TensorBoard 또는 파일 저장을 통해 tracing할 수 있도록.
@@ -196,8 +197,17 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config):
         model.train()
         start.record()
 
+        # Tensorboard recording
+        # writer.add_scalar('Loss/Train', losses.avg, epoch)
+        # writer.add_scalar('Loss/Valid', valid_loss, epoch)
+        writer.add_scalars('Loss', {'Train':losses.avg, 'Valid':valid_loss}, epoch)
+        writer.add_scalar('RMSE/Valid', valid_rmse, epoch)
+        writer.add_scalar('MAE/Valid', valid_mae, epoch)
+
         print(f"Epoch {epoch:03d}: Train Loss: {losses.avg:.4f} || Valid Loss: {valid_loss:.4f} || epoch RMSE: {valid_rmse:.4f} || epoch MAE: {valid_mae:.4f} || best RMSE: {best_dev_rmse:.4f} || best MAE: {best_dev_mae:.4f}")
         # logger.info(f"Epoch {epoch:03d}: Train Loss: {losses.avg:.4f} || Valid Loss: {valid_loss:.4f} || epoch RMSE: {valid_rmse:.4f} || epoch MAE: {valid_mae:.4f} || best RMSE: {best_dev_rmse:.4f} || best MAE: {best_dev_mae:.4f}")
+
+    writer.close()
 
     print('\n [Train Finished]')
     print("total training time (s): {}".format((time.time()-init_t)))
@@ -392,9 +402,12 @@ def main():
 
     # criterion = nn.MSELoss()
 
+    ### TensorBoard writer preparation ###
+    writer = SummaryWriter()
+
     ### train ###
     if args.mode == 'train':
-        train(model, optimizer, lr_scheduler, ds_iter, training_config)
+        train(model, optimizer, lr_scheduler, ds_iter, training_config, writer)
         # train(model, optimizer, ds_iter, training_config, criterion)
 
     ### eval ###
