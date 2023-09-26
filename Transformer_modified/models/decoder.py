@@ -4,7 +4,7 @@ import torch.nn as nn
 from models.blocks.decoder_layer import DecoderLayer
 from models.layers.encoding_modules import ItemNodeEncoder, RatingEncoder
 
-from model_utils import generate_attn_pad_mask, generate_attn_subsequent_mask
+from model_utils import generate_attn_pad_mask
 
 class Decoder(nn.Module):
     """
@@ -61,12 +61,26 @@ class Decoder(nn.Module):
         x = self.input_embed(batched_data)
 
         # Generate mask for padded data
-        dec_self_attn_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['item_list']).cuda()
-        dec_self_attn_subsequent_mask = generate_attn_subsequent_mask(batched_data['item_list']).cuda()
-        trg_mask = torch.gt((dec_self_attn_mask + dec_self_attn_subsequent_mask), 0)
-        
+            # FIXME: 현재 데이터/task 에선 subsequent masking에 의미가 X.
+        dec_self_attn_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['item_list']).cuda()    # [batch_size, seq_len_item, seq_len_item]
+        # print('\n<<<<<<<<<< Decoder의 self attention pad mask >>>>>>>>>>')
+        # print(dec_self_attn_mask[0][:][0].data)
+        # print(dec_self_attn_mask[0][:][0].shape)
+        # print(dec_self_attn_mask.shape)
+        # quit()
+        # dec_self_attn_subsequent_mask = generate_attn_subsequent_mask(batched_data['item_list']).cuda()             # [batch_size, seq_len_item, seq_len_item]
+        # print('\n<<<<<<<<<< Decoder의 self attention subsequent mask >>>>>>>>>>')
+        # print(dec_self_attn_subsequent_mask[0][:][0].data)
+        # quit()
+
+        # trg_mask = torch.gt((dec_self_attn_mask + dec_self_attn_subsequent_mask), 0)    # [batch_size, seq_len_item, seq_len_item]
+        trg_mask = dec_self_attn_mask
+
         dec_enc_mask = generate_attn_pad_mask(batched_data['item_list'], batched_data['user_seq']).cuda()
-        src_mask = dec_enc_mask
+        src_mask = dec_enc_mask     # [batch_size, seq_len_item, seq_len_user]
+
+        # del dec_self_attn_mask, dec_self_attn_subsequent_mask, dec_enc_mask
+        del dec_self_attn_mask, dec_enc_mask
 
         # Rating encoding
             # [batch_size, seq_length_user, seq_length_item, num_heads]
