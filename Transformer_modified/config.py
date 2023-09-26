@@ -26,7 +26,7 @@ ciao={
             "lr_decay":"linear",
             "weight_decay":0,
             "eval_frequency":400, 
-            "num_epochs":100,
+            "num_epochs":50,
             "num_eval_steps":849,   # total_valid_sample / total_epoch
             "patience":10, 
          },
