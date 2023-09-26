@@ -9,16 +9,27 @@ import os
 import data_utils as utils
 
 
-data_path = os.getcwd() + '/dataset/' + 'ciao' 
+data_path = os.getcwd() + '/dataset/' + 'epinions' 
 
-utils.mat_to_csv(data_path)
+# utils.mat_to_csv(data_path)
 
-utils.generate_social_dataset(data_path, save_flag=True)
+# utils.generate_social_dataset(data_path, save_flag=True, split='train')
+# utils.generate_social_dataset(data_path, save_flag=True, split='test')
+# utils.generate_social_dataset(data_path, save_flag=True, split='valid')
 
-utils.generate_user_degree_table(data_path)
-utils.generate_item_degree_table(data_path)
+# utils.generate_user_degree_table(data_path)
+# utils.generate_item_degree_table(data_path)
 
-# utils.generate_interacted_items_table(data_path, all=True)
-utils.generate_interacted_items_table(data_path, all=False, item_length=3)
 
-utils.generate_social_random_walk_sequence(data_path, num_nodes=10, walk_length=20, save_flag=True, all_node=True, seed=False)
+# utils.generate_interacted_items_table(data_path, all=True, split='train')
+# utils.generate_interacted_items_table(data_path, all=True, split='test')
+# utils.generate_interacted_items_table(data_path, all=True, split='valid')
+
+
+# utils.generate_social_random_walk_sequence(data_path, walk_length=20, save_flag=True, all_node=True, seed=False, split='train')
+# utils.generate_social_random_walk_sequence(data_path, walk_length=20, save_flag=True, all_node=True, seed=False, split='test')
+# utils.generate_social_random_walk_sequence(data_path, walk_length=20, save_flag=True, all_node=True, seed=False, split='valid')
+
+# utils.generate_input_sequence_data(data_path=data_path, split='train', item_seq_len=250)
+utils.generate_input_sequence_data(data_path=data_path, split='test', item_seq_len=250)
+# utils.generate_input_sequence_data(data_path=data_path, split='valid', item_seq_len=250)

@@ -67,3 +67,5 @@ _*.py
 
 # ignoring for deprecated(un-used) files.
 dep/
+*.pkl
+*.npy
