@@ -21,6 +21,15 @@ from Social_Encoder import Social_Encoder
 from Social_Aggregator import Social_Aggregator
 from GraphRec import GraphRec
 
+import sys
+sys.path.append("../Transformer_modified")
+import data_utils
+import pandas as pd
+from tqdm import tqdm
+import os
+import logging
+from utils import redirect_stdout
+
 """
 지금 논문은 user-user와 user-item을 사용하는데, user-item을 각각
 user-item, user-rating, item-user, item-rating 으로 세분화해서 사용헀음. 
@@ -31,6 +40,26 @@ user-item, user-rating, item-user, item-rating 으로 세분화해서 사용헀�
 """
 TODO: dataset의 sparsity check? `sparsity = 1.0 - count_nonzero(X) / X.size`
 """
+
+
+logger = logging.getLogger(__name__)
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 # random seed
 torch.manual_seed(1234)
@@ -93,10 +122,29 @@ def main():
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
     parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
-    parser.add_argument('--dataset', type=str, default='data_full/ciao/')
+    # parser.add_argument('--dataset', type=str, default='data_full/ciao/')
     parser.add_argument('--test_ratio', type=float, default=0.2, help='test set ratio to use. Default is 0.2(20%), so dataset will be split into train(0.8):test(0.2).')
     parser.add_argument('--toy_data', action='store_true', help='Use toy dataset for testing')      # If we use toy_dataset, we should specify this argument.
+    parser.add_argument('--preprocess', type=bool, default=False, help='preprocess or not')
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--name', type=str, default='tmp')
     args = parser.parse_args()
+
+
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+                        datefmt='%m/%d/%Y %H:%M:%S',
+                        level=logging.INFO)
+
+    ### log preparation ###
+    log_dir = os.getcwd() + f'/logs/log_seed_{args.seed}/'
+    if not os.path.exists(log_dir):
+        os.mkdir(log_dir)
+    log_dir = os.path.join(log_dir,'ciao')#args.dataset)
+    if not os.path.exists(log_dir):
+        os.mkdir(log_dir)
+
+    log_path = os.path.join(log_dir,'{}.{}.log'.format('train', args.name))#args.mode, args.name))
+    redirect_stdout(open(log_path, 'w'))
 
     # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     use_cuda = False
@@ -112,26 +160,66 @@ def main():
         # toy dataset
         dir_data = './data/toy_dataset'
         path_data = dir_data + '.pickle'
-    else:
-        # Ciao or Epinions dataset
-        # need to preprocess
-        dir_data = args.dataset
-        path_data = ''
-        for file in os.listdir(dir_data):
-            if file.endswith('.pickle'):
-                path_data = dir_data + file
-                print("\n Pickle file exists, no need to preprocess... \n")
-        if path_data == '':
-            print("\n dataset.pickle not found. Generating pickle file... \n")
-            # preprocessor = DataPreprocess(dir_data, args.test_ratio)
-            # preprocessor.preprocess()
-            path_data = dir_data + 'dataset.pickle'
-
-    print("\n ***** Data Loaded ***** \n")
-
-    data_file = open(path_data, 'rb')
+        data_file = open(path_data, 'rb')
     # history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list, users, friends = pickle.load(data_file)
-    history_user_item_list, history_user_rating_list, history_item_user_list, history_item_rating_list, train_user, train_item, train_rating, test_user, test_item, test_rating, social_connect_info, ratings_list = pickle.load(data_file)
+        history_user_item_list, history_user_rating_list, history_item_user_list, history_item_rating_list, train_user, train_item, train_rating, test_user, test_item, test_rating, social_connect_info, ratings_list = pickle.load(data_file)
+
+    # else:
+    #     # Ciao or Epinions dataset
+    #     # need to preprocess
+    #     dir_data = args.dataset
+    #     path_data = ''
+    #     for file in os.listdir(dir_data):
+    #         if file.endswith('.pickle'):
+    #             path_data = dir_data + file
+    #             print("\n Pickle file exists, no need to preprocess... \n")
+    #     if path_data == '':
+    #         print("\n dataset.pickle not found. Generating pickle file... \n")
+    #         # preprocessor = DataPreprocess(dir_data, args.test_ratio)
+    #         # preprocessor.preprocess()
+    #         path_data = dir_data + 'dataset.pickle'
+    else:
+        data_path = "../../datasets/ml-100k"
+        if args.preprocess == True:
+            data_utils.mat_to_csv(data_path, seed = args.seed)
+        print("\n ***** Data Loaded ***** \n")
+
+        rate_count = 5
+        ratings_list = np.arange(1,rate_count+1,1)
+        ratings_list = dict(zip(ratings_list, range(len(ratings_list))))
+
+        ratings = pd.read_csv(f'{data_path}/rating.csv', index_col=[])
+        num_users = max(ratings.user_id.unique())+1
+        num_items = max(ratings.product_id.unique())+1
+
+        user_item_dataframe = data_utils.generate_interacted_items_table(data_path, all=True, split='train')
+        user_item_dataframe = user_item_dataframe.set_index('user_id')
+        user_item_dataframe = user_item_dataframe.reindex(range(0, num_users))
+        user_item_dataframe = user_item_dataframe.applymap(lambda x: [0] if pd.isna(x).all() else x)
+        user_item_dataframe['user_id'] = user_item_dataframe.index
+
+        history_user_item_list = dict(zip(user_item_dataframe.user_id, user_item_dataframe.product_id))
+        history_user_rating_list = dict(zip(user_item_dataframe.user_id, user_item_dataframe.rating))
+
+        item_user_dataframe = data_utils.generate_interacted_users_table(data_path, split='train')
+        # print(item_user_dataframe.head())
+        item_user_dataframe = item_user_dataframe.set_index('product_id')
+        item_user_dataframe = item_user_dataframe.reindex(range(0, num_items))
+        # print(item_user_dataframe.head())
+        item_user_dataframe = item_user_dataframe.applymap(lambda x: [0] if np.any(pd.isna(x)) else x)
+        item_user_dataframe['product_id'] = item_user_dataframe.index
+
+        history_item_user_list = dict(zip(item_user_dataframe.product_id, item_user_dataframe.user_id))
+        history_item_rating_list = dict(zip(item_user_dataframe.product_id, item_user_dataframe.rating))
+
+        trainset = pd.read_csv(f'{data_path}/rating_train.csv', index_col=[])
+        train_user, train_item, train_rating = trainset.user_id, trainset.product_id, trainset.rating
+        testset = pd.read_csv(f'{data_path}/rating_test.csv', index_col=[])
+        test_user, test_item, test_rating = testset.user_id, testset.product_id, testset.rating
+
+    # data_file = open(path_data, 'rb')
+    # # history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list, users, friends = pickle.load(data_file)
+    # history_user_item_list, history_user_rating_list, history_item_user_list, history_item_rating_list, train_user, train_item, train_rating, test_user, test_item, test_rating, social_connect_info, ratings_list = pickle.load(data_file)
 
     """
     #### user-item matrix로 부터 생성 (rating.mat)
@@ -216,20 +304,20 @@ def main():
     )
 
     # User Modeling : Social Aggregation (user-item graph에서 도출한 이웃들의 latent factor를 이용해 social network에서 주어진 user의 latent factor를 학습) -> 생성물: h^S
-    user_user_aggregation = Social_Aggregator(      # agg_u_social
-        lambda nodes: user_item_encoding(nodes).t(),    # user_item_encoding의 결과인 h^I를 이용
-        user_embedding,                                 # social aggregation을 위해 user embedding p_i를 사용
-        embed_dim, 
-        cuda=device
-    )
-    final_user_representation = Social_Encoder(     # enc_u
-        lambda nodes: user_item_encoding(nodes).t(),    # user_item_encoding의 결과인 h^I를 이용
-        embed_dim, 
-        social_connect_info,                            # user-user connectivity information : 사용자와 연결된 사용자 목록, 즉 shape가 (user,user)인 Adj. 
-        user_user_aggregation,                          # Aggregator : user-user aggregation을 수행하는 모듈 -> 소셜 연결 정보를 Aggregator에 전달해 이웃 사용자의 aggregation을 수행
-        base_model=user_item_encoding, 
-        cuda=device
-    )
+    # user_user_aggregation = Social_Aggregator(      # agg_u_social
+    #     lambda nodes: user_item_encoding(nodes).t(),    # user_item_encoding의 결과인 h^I를 이용
+    #     user_embedding,                                 # social aggregation을 위해 user embedding p_i를 사용
+    #     embed_dim, 
+    #     cuda=device
+    # )
+    # final_user_representation = Social_Encoder(     # enc_u
+    #     lambda nodes: user_item_encoding(nodes).t(),    # user_item_encoding의 결과인 h^I를 이용
+    #     embed_dim, 
+    #     social_connect_info,                            # user-user connectivity information : 사용자와 연결된 사용자 목록, 즉 shape가 (user,user)인 Adj. 
+    #     user_user_aggregation,                          # Aggregator : user-user aggregation을 수행하는 모듈 -> 소셜 연결 정보를 Aggregator에 전달해 이웃 사용자의 aggregation을 수행
+    #     base_model=user_item_encoding, 
+    #     cuda=device
+    # )
     #### User Modeling
 
     #### Item Modeling
@@ -260,7 +348,7 @@ def main():
     # print(item_user_encoding)           # Item Modeling Network z_j
     
     # Define model
-    model = GraphRec(final_user_representation, item_user_encoding, opinion_embedding).to(device)
+    model = GraphRec(user_item_encoding, item_user_encoding, opinion_embedding).to(device)
     # print(model)
 
     optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr, alpha=0.9)
