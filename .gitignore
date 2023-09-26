@@ -71,3 +71,5 @@ dep/
 # ignoreing log files & checkpoint files
 logs/
 checkpoints/
+*.pkl
+*.npy
