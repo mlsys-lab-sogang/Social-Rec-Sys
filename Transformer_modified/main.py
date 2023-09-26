@@ -38,17 +38,17 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
-def MaskedMSELoss(target, prediction):
-    """
-    Compute Masked MSELoss
-    """
-    mask = (target != 0).float()
-    squared_diff = (prediction - target)**2 * mask
-    loss = torch.sum(squared_diff) / torch.sum(mask)
+# def MaskedMSELoss(target, prediction):
+#     """
+#     Compute Masked MSELoss
+#     """
+#     mask = (target != 0).float()
+#     squared_diff = (prediction - target)**2 * mask
+#     loss = torch.sum(squared_diff) / torch.sum(mask)
 
-    return loss
+#     return loss
 
-def valid(model, ds_iter, epoch, training_config, checkpoint_path, global_step, best_dev_rmse, init_t, criterion):
+def valid(model, ds_iter, epoch, checkpoint_path, global_step, best_dev_rmse, best_dev_mae, init_t):
     val_rmse = []
     val_mae = []
     eval_losses = AverageMeter()
@@ -76,15 +76,17 @@ def valid(model, ds_iter, epoch, training_config, checkpoint_path, global_step, 
                 # 단순히 이 둘의 MSELoss를 계산하는 경우, known rating에 대한 제곱오차만을 계산하는 것이 아닌 unknown rating(0)에 대한 제곱오차도 계산하게 됨.
                 # 따라서 Masked MSELoss를 사용.
                 # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산.
-            mask = (batch['item_rating'] != 0).float()
+            mask = (batch['item_rating'] != 0)
             squared_diff = (outputs - batch['item_rating'])**2 * mask
             loss = torch.sum(squared_diff) / torch.sum(mask)
 
             eval_losses.update(loss)
 
-            mse = F.mse_loss(outputs, batch['item_rating'], reduction='none')
+            # 실제 rating matrix에서 0이 아닌 부분(실제 매긴 rating)과만 loss를 계산
+                # -> 현재 목표는 rating regression이기 때문이니까.
+            mse = F.mse_loss(outputs[mask], batch['item_rating'][mask], reduction='none')
             rmse = torch.sqrt(mse.mean())
-            mae = F.l1_loss(outputs, batch['item_rating'], reduction='mean')
+            mae = F.l1_loss(outputs[mask], batch['item_rating'][mask], reduction='mean')
 
             val_rmse.append(rmse)
             val_mae.append(mae)
@@ -97,21 +99,22 @@ def valid(model, ds_iter, epoch, training_config, checkpoint_path, global_step, 
 
         if total_rmse < best_dev_rmse:
             best_dev_rmse = total_rmse
+            best_dev_mae = total_mae
             torch.save({"model_state_dict":model.state_dict()}, checkpoint_path)
-            print('best model saved: step = ',global_step, 'epoch = ', epoch,'dev RMSE = ',total_rmse.item(), 'dev MAE = ', total_mae.item())
+            print(f'\t best model saved: step = {global_step}, epoch = {epoch},dev RMSE = {total_rmse.item():.6f}, dev MAE = {total_mae.item():.6f}')
 
-    print("\n[Validation Results]")
-    print("Global Steps: %d" % global_step)
-    print("Epoch: %d" % epoch)
-    print("Valid Loss: %2.5f" % eval_losses.avg)
-    print("Valid RMSE: %2.5f" % total_rmse)
-    print("Valid MAE: %2.5f" % total_mae)
-    print("time stamp: {}".format((time.time()-init_t)))
-    print("\n")
+    # print("\n[Validation Results]")
+    # # print("Global Steps: %d" % global_step)
+    # print("Epoch: %d" % epoch)
+    # print("Valid Loss: %2.5f" % eval_losses.avg)
+    # print("Valid RMSE: %2.5f" % total_rmse)
+    # print("Valid MAE: %2.5f" % total_mae)
+    # print("time stamp: {}".format((time.time()-init_t)))
+    # print("\n")
 
-    return best_dev_rmse
+    return eval_losses.avg, best_dev_rmse, best_dev_mae, total_rmse, total_mae
 
-def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
+def train(model, optimizer, lr_scheduler, ds_iter, training_config):
 # def train(model, optimizer, ds_iter, training_config, criterion):
 
     # TODO: Epoch당 loss, RMSE, MAE 추적 => TensorBoard 또는 파일 저장을 통해 tracing할 수 있도록.
@@ -121,6 +124,7 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
 
     checkpoint_path = training_config['checkpoint_path']
     best_dev_rmse = 9999.0
+    best_dev_mae = 9999.0
 
     total_epochs = training_config["num_epochs"]
 
@@ -159,7 +163,7 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
                 # 따라서 Masked MSELoss를 사용
                 # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산하게 된다.
             # loss = criterion(outputs.float(), batch['item_rating'].float())
-            mask = (batch['item_rating'] != 0).float()
+            mask = (batch['item_rating'] != 0)
 
             squared_diff = (outputs - batch['item_rating'])**2 * mask
 
@@ -177,15 +181,23 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
         # print(f"Epoch {epoch} Finished (Average Loss: {losses.avg:.4f})")
 
             # Validation step
-            if (step + 1) % training_config["eval_frequency"] == 0:
-                end.record()
-                torch.cuda.synchronize()
-                total_time += (start.elapsed_time(end))
-                best_dev_rmse = valid(model, ds_iter, epoch, training_config, checkpoint_path, step, best_dev_rmse, init_t, criterion)
-                model.train()
-                start.record()
+            # if (step + 1) % training_config["eval_frequency"] == 0:
+            #     end.record()
+            #     torch.cuda.synchronize()
+            #     total_time += (start.elapsed_time(end))
+            #     best_dev_rmse = valid(model, ds_iter, epoch, training_config, checkpoint_path, step, best_dev_rmse, init_t, criterion)
+            #     model.train()
+            #     start.record()
+        # validation
+        end.record()
+        torch.cuda.synchronize()
+        total_time += (start.elapsed_time(end))
+        valid_loss, best_dev_rmse, best_dev_mae, valid_rmse, valid_mae = valid(model, ds_iter, epoch, checkpoint_path, step, best_dev_rmse, best_dev_mae, init_t)
+        model.train()
+        start.record()
 
-        print(f"Epoch {epoch} Finished (Average Loss: {losses.avg:.4f})")
+        print(f"Epoch {epoch:03d}: Train Loss: {losses.avg:.4f} || Valid Loss: {valid_loss:.4f} || epoch RMSE: {valid_rmse:.4f} || epoch MAE: {valid_mae:.4f} || best RMSE: {best_dev_rmse:.4f} || best MAE: {best_dev_mae:.4f}")
+        # logger.info(f"Epoch {epoch:03d}: Train Loss: {losses.avg:.4f} || Valid Loss: {valid_loss:.4f} || epoch RMSE: {valid_rmse:.4f} || epoch MAE: {valid_mae:.4f} || best RMSE: {best_dev_rmse:.4f} || best MAE: {best_dev_mae:.4f}")
 
     print('\n [Train Finished]')
     print("total training time (s): {}".format((time.time()-init_t)))
@@ -195,7 +207,7 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion):
     print(torch.cuda.memory_summary(device=0))
 
 
-def eval(model, ds_iter, criterion):
+def eval(model, ds_iter):
 
     val_rmse = []
     val_mae = []
@@ -230,16 +242,18 @@ def eval(model, ds_iter, criterion):
                 # 단순히 이 둘의 MSELoss를 계산하는 경우, known rating에 대한 제곱오차만을 계산하는 것이 아닌 unknown rating(0)에 대한 제곱오차도 계산하게 됨.
                 # 따라서 Masked MSELoss를 사용
                 # model의 출력에서 unknown rating에 대한 부분을 0으로 masking 처리, 제곱오차 계산 시 known rating과 만의 제곱오차를 계산하게 된다.
-            mask = (batch['item_rating'] != 0).float()
+            mask = (batch['item_rating'] != 0)
             squared_diff = (outputs - batch['item_rating'])**2 * mask
             loss = torch.sum(squared_diff) / torch.sum(mask)
 
             # eval_losses.update(loss.mean())
             eval_losses.update(loss)
             
-            mse = F.mse_loss(outputs, batch['item_rating'], reduction='none')
+            # 실제 rating matrix에서 0이 아닌 부분(실제 매긴 rating)과만 loss를 계산
+                # -> 현재 목표는 rating regression이기 때문이니까.
+            mse = F.mse_loss(outputs[mask], batch['item_rating'][mask], reduction='none')
             rmse = torch.sqrt(mse.mean())
-            mae = F.l1_loss(outputs, batch['item_rating'], reduction='mean')
+            mae = F.l1_loss(outputs[mask], batch['item_rating'][mask], reduction='mean')
 
             val_rmse.append(rmse)
             val_mae.append(mae)
@@ -331,7 +345,7 @@ def main():
 
     device_ids = list(range(torch.cuda.device_count()))
     print(f"GPU list: {device_ids}")
-    model = nn.DataParallel(model, device_ids = device_ids).cuda()
+    model = model.cuda()
 
     ### data preparation ###
 
@@ -376,11 +390,11 @@ def main():
         steps_per_epoch = 2 * len(ds_iter['train'])
     )
 
-    criterion = nn.MSELoss()
+    # criterion = nn.MSELoss()
 
     ### train ###
     if args.mode == 'train':
-        train(model, optimizer, lr_scheduler, ds_iter, training_config, criterion)
+        train(model, optimizer, lr_scheduler, ds_iter, training_config)
         # train(model, optimizer, ds_iter, training_config, criterion)
 
     ### eval ###
@@ -388,7 +402,7 @@ def main():
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint["model_state_dict"])
         print("loading the best model from: " + checkpoint_path)
-    eval(model, ds_iter, criterion)
+    eval(model, ds_iter)
 
     torch.cuda.empty_cache()
 
