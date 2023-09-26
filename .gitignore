@@ -67,3 +67,7 @@ _*.py
 
 # ignoring for deprecated(un-used) files.
 dep/
+
+# ignoreing log files & checkpoint files
+logs/
+checkpoints/
