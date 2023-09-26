@@ -52,8 +52,14 @@ def find_shortest_path_distance(data_path):
 def generate_attn_pad_mask(seq_q, seq_k):
     """
     Generate attention mask
-        0-padded data -> apply mask
-        original data -> do not apply mask
+        0-padded data -> apply mask (False, 0)
+        original data -> do not apply mask (True, 1)
+    
+    ex)
+        data: [1293, 5034,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+                0,    0,    0,    0,    0,    0,    0,    0]
+    ==> mask: [ True,  True, False, False, False, False, False, False, False, False,
+                False, False, False, False, False, False, False, False, False, False]
     """
     # FIXME: (230911) 현재 mask 생성을 위한 입력으로 들어오는 shape은 다음과 같음.
         # Enc에선 [batch_size, seq_len_user, seq_len_user]
@@ -64,7 +70,8 @@ def generate_attn_pad_mask(seq_q, seq_k):
     batch_size, len_k = seq_k.size()
 
     # [batch_size, 1, len_k(=len_q)]
-    pad_attn_mask = seq_k.data.eq(0).unsqueeze(1)
+    # pad_attn_mask = seq_k.data.eq(0).unsqueeze(1)
+    pad_attn_mask = (seq_k.data != 0).unsqueeze(1)      # FIXME: 0인 곳을 False(0)으로 두어야 softmax 거칠 시 0이 나옴.
 
     # [batch_size, len_q, len_k]
     return pad_attn_mask.expand(batch_size, len_q, len_k)
