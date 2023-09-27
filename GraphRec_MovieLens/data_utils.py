@@ -66,7 +66,7 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
 
     elif dataset_name == 'ml-100k':
         
-        rating_df = pd.read_csv(data_path+'/u.data', sep="\t", names=['user_id','item_id','rating','timestamp'])
+        rating_df = pd.read_csv(data_path+'/u.data', sep="\t", names=['user_id','product_id','rating','timestamp'])
         rating_df.drop(['timestamp'], axis=1, inplace=True)
     # trust_file = loadmat(data_path + '/' + 'trustnetwork.mat')
     # trust_file = trust_file['trustnetwork'].astype(np.int64)    
@@ -114,14 +114,14 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
 
     if all==True:
         user_item_dataframe = dataframe.groupby('user_id').agg({'product_id': list, 'rating': list}).reset_index()
-        user_item_dataframe['product_degree'] = user_item_dataframe['product_id'].apply(lambda x: [degree_table[id] for id in x])
+        # user_item_dataframe['product_degree'] = user_item_dataframe['product_id'].apply(lambda x: [degree_table[id] for id in x])
 
         # This is for indexing 0, where random walk sequence has padded with 0.
             # minimum number of interacted item is 4(before dataset splitting), so pad it to 4.
-        empty_data = [0, [0 for _ in range(4)], [0 for _ in range(4)], [0 for _ in range(4)]]
-        user_item_dataframe.loc[-1] = empty_data
-        user_item_dataframe.index = user_item_dataframe.index + 1
-        user_item_dataframe.sort_index(inplace=True)
+        # empty_data = [0, [0 for _ in range(4)], [0 for _ in range(4)], [0 for _ in range(4)]]
+        # user_item_dataframe.loc[-1] = empty_data
+        # user_item_dataframe.index = user_item_dataframe.index + 1
+        # user_item_dataframe.sort_index(inplace=True)
         # user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
         user_item_dataframe.to_csv(data_path + f'/user_item_interaction_{split}.csv', index=False)
 

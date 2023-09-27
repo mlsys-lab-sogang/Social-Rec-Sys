@@ -193,10 +193,13 @@ def main():
         num_items = max(ratings.product_id.unique())+1
 
         user_item_dataframe = data_utils.generate_interacted_items_table(data_path, all=True, split='train')
+        print(user_item_dataframe.head())
         user_item_dataframe = user_item_dataframe.set_index('user_id')
         user_item_dataframe = user_item_dataframe.reindex(range(0, num_users))
         user_item_dataframe = user_item_dataframe.applymap(lambda x: [0] if pd.isna(x).all() else x)
         user_item_dataframe['user_id'] = user_item_dataframe.index
+        print(user_item_dataframe.head())
+        quit()
 
         history_user_item_list = dict(zip(user_item_dataframe.user_id, user_item_dataframe.product_id))
         history_user_rating_list = dict(zip(user_item_dataframe.user_id, user_item_dataframe.rating))
