@@ -22,6 +22,7 @@ from tqdm.auto import tqdm
 from collections import defaultdict
 from sklearn.utils import shuffle
 import torch
+from scipy import sparse
 
 # arg(or else) passing to DATASET later
 # DATASET = 'ciao'
@@ -70,11 +71,20 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
     # print("before reset and filter")
     # quit()
     ### data filtering & id re-arrange ###
-    rating_df, trust_df = reset_and_filter_data(rating_df, trust_df)
+    # rating_df, trust_df = reset_and_filter_data(rating_df, trust_df)
+    rating_df = pd.read_csv(data_path+'/rating.csv', index_col=[], dtype=int)#, names=['user_id', 'product_id', 'rating'])
+    
     ### data filtering & id re-arrange ###
     # print("After reset and filter")
     # quit()
+    # rating_matrix = rating_df.pivot_table(values='rating', index='user_id', columns='product_id').fillna(0).to_numpy()
+    rating_matrix = sparse.lil_matrix((max(rating_df['user_id'].unique())+1, max(rating_df['product_id'].unique())+1), dtype=np.uint16)
 
+    for index in rating_df.index:
+        rating_matrix[rating_df['user_id'][index],rating_df['product_id'][index]] = rating_df['rating'][index]
+    rating_matrix = rating_matrix.toarray()
+
+    np.save(data_path + '/rating_matrix.npy', rating_matrix)    
     ### train test split TODO: Change equation for split later on
     # TODO: make random_state a seed varaiable
     split_rating_df = shuffle(rating_df, random_state=seed)
@@ -451,7 +461,7 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
-def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=250):
+def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=250, seed:int):
     """
     Prepare data to fed into Dataset class.
 
@@ -506,7 +516,14 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
     spd_table = torch.from_numpy(np.load(data_path + '/' + spd_path)).long()
 
     # Load rating table => 마찬가지로 각 sequence마다 [seq_len_user, seq_len_item] 크기의 rating matrix를 생성하도록.
-    rating_table = pd.read_csv(data_path + '/' + item_rating_path, index_col=[])
+    # rating_table = pd.read_csv(data_path + '/' + item_rating_path, index_col=[])
+    rating_matrix = np.load(data_path + '/rating_matrix.npy')#pd.DataFrame(np.load(data_path + '/rating_matrix.npy'))
+    # print(len(rating_matrix))
+    # print(len(rating_matrix[0]))
+    # print(rating_matrix)
+    # quit()
+    # print(rating_matrix)
+    # quit()
 
     total_df = pd.DataFrame(columns=['user_id', 'user_sequences', 'user_degree', 'item_sequences', 'item_degree', 'item_rating', 'spd_matrix'])
     for _, data in tqdm(user_df.iterrows(), total=user_df.shape[0]):
@@ -519,6 +536,7 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
 
         # 1개의 rw sequence에 있는 사용자들이 상호작용한 모든 아이템 & 해당 아이템들의 degree 가져와서
         for index in item_indexer:
+            # item_df.iloc[index][]
             item_list.append(item_df.loc[item_df['user_id'] == index]['product_id'].values[0])
             degree_list.append(item_df.loc[item_df['user_id'] == index]['product_degree'].values[0])
         
@@ -554,15 +572,19 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
         for item_list, degree_list in zip(sliced_item_list, sliced_degree_list):
 
             # 현재 선택된 user_seq에 있는 사용자들과 sliced item_seq에 대해 [seq_len_user, seq_len_item] 크기의 rating table 생성
-            rating_matrix = torch.zeros((len(current_sequence), item_seq_len))
-            for i in range(rating_matrix.shape[0]):      # user loop (row)
+            small_rating_matrix = torch.zeros((len(current_sequence), item_seq_len))
+            # print(len(rating_matrix[0]))
+            for i in range(small_rating_matrix.shape[0]):      # user loop (row)
                 matrix_user = current_sequence[i]
-                for j in range(rating_matrix.shape[1]):  # item loop (col)
+                for j in range(small_rating_matrix.shape[1]):  # item loop (col)
                     matrix_item = item_list[j]
-                    matrix_rating = rating_table.loc[(rating_table['user_id'] == matrix_user) & (rating_table['product_id'] == matrix_item)]['rating'].values
-                    if len(matrix_rating) == 0:
-                        continue
-                    rating_matrix[i][j] = matrix_rating[0]
+                    # print(rating_matrix)
+                    # print(matrix_user, matrix_item)
+                    # matrix_rating = rating_table.loc[(rating_table['user_id'] == matrix_user) & (rating_table['product_id'] == matrix_item)]['rating'].values
+                    matrix_rating = rating_matrix[matrix_user][matrix_item]
+                    # if len(matrix_rating) == 0:
+                    #     continue
+                    small_rating_matrix[i][j] = matrix_rating#[0]
             
             # total_df.loc[len(total_df)] = [torch.LongTensor(current_user), 
             #                                torch.LongTensor(current_sequence), 
@@ -576,9 +598,10 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
                                             current_degree, 
                                             item_list, 
                                             degree_list, 
-                                            rating_matrix.numpy(),
+                                            small_rating_matrix.numpy(),
                                             spd_matrix.numpy()]
-    
+    # print(total_df.head())
+    # quit()
     ########################### FIXME: 초안모델 디버깅용으로 user_id=100 까지만 기록. ###########################
     ########################### FIXME: 그리고 전체 user_id 쓸때는 파일 이름 변경.    ###########################
         # if current_user == 100:
@@ -590,7 +613,7 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
     # total_df.to_csv(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.csv", index=False)
     # total_df.to_parquet(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.parquet", engine='pyarrow',compression='gzip', index=False)
     # with open(data_path + f"/sequence_data_num_user_100_itemseq_{item_seq_len}_{split}.pkl", "wb") as file:
-    with open(data_path + f"/sequence_data_itemlen_{item_seq_len}_{split}.pkl", "wb") as file:
+    with open(data_path + f"/sequence_data_seed_{seed}_itemlen_{item_seq_len}_{split}.pkl", "wb") as file:
         pickle.dump(total_df, file)
     ######################################################################################################
 
@@ -598,8 +621,8 @@ def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=
 if __name__ == "__main__":
     ##### For checking & debugging (will remove later)
 
-    data_path = os.getcwd() + '/dataset/' + 'ciao'
-    generate_input_sequence_data(data_path=data_path, split='train', item_seq_len=250)
+    data_path = os.getcwd() + '/dataset/' + 'epinions'
+    # generate_input_sequence_data(data_path=data_path, split='train', item_seq_len=250)
     # user_sequences, user_degree, item_sequences, item_rating, item_degree = generate_sequence_data(data_path=data_path, split='train')
     # print(user_sequences.shape)
     # quit() 
@@ -607,7 +630,8 @@ if __name__ == "__main__":
     # data_path = os.getcwd() + '/dataset/' + 'ciao' 
     # rating_file = data_path + '/rating_test.csv'
     # generate_social_dataset(data_path, save_flag=True, split='train')
-    mat_to_csv(data_path)
+    # mat_to_csv(data_path)
+    generate_input_sequence_data(data_path, seed=42)
     quit()
     # print(generate_interacted_items_table(data_path, all=True))
     # print(generate_sequence_data('ciao')[0][0])
