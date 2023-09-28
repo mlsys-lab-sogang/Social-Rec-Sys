@@ -461,7 +461,7 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
-def generate_input_sequence_data(data_path, split:str='train', item_seq_len:int=250, seed:int):
+def generate_input_sequence_data(data_path, seed:int, split:str='train', item_seq_len:int=250):
     """
     Prepare data to fed into Dataset class.
 
