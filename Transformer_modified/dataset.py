@@ -12,11 +12,13 @@ class MyDataset(Dataset):
         __getitem__():  data indexing (e.g. dataset[0])
         __len__():      length of dataset (e.g. len(dataset))
     """
-    def __init__(self, dataset:str, split:str):
+    def __init__(self, dataset:str, split:str, seed:int, item_seq_len:int):
         """
         Args:
             dataset: raw dataset name (ciao // epinions)
             split: dataset split type (train // valid // test)
+            seed: random seed used in dataset split
+            item_seq_len: length of item list (processed in `data_utils.py`)
         """
         self.data_path = os.getcwd() + '/dataset/' + dataset
 
@@ -29,36 +31,39 @@ class MyDataset(Dataset):
         # 모든 user
         with open(self.data_path + '/' + f'sequence_data_itemlen_250_{split}.pkl', 'rb') as file:
             dataframe = pickle.load(file)
+
+        with open(self.data_path + '/' f'sequence_data_seed_{seed}_itemlen_{item_seq_len}_{split}.pkl', 'rb') as file:
+            dataframe = pickle.load(file)
         ####################
 
 
 
 
-        user_seq = dataframe['user_sequences'].values
-        user_seq = np.array([np.array(x) for x in user_seq])
+        user_sequences = dataframe['user_sequences'].values
+        user_sequences = np.array([np.array(x) for x in user_sequences])
 
-        user_deg = dataframe['user_degree'].values
-        user_deg = np.array([np.array(x) for x in user_deg])
+        user_degree = dataframe['user_degree'].values
+        user_degree = np.array([np.array(x) for x in user_degree])
 
-        item_seq = dataframe['item_sequences'].values
-        item_seq = np.array([np.array(x) for x in item_seq])
+        item_sequences = dataframe['item_sequences'].values
+        item_sequences = np.array([np.array(x) for x in item_sequences])
 
-        item_deg = dataframe['item_degree'].values
-        item_deg = np.array([np.array(x) for x in item_deg])
+        item_degree = dataframe['item_degree'].values
+        item_degree = np.array([np.array(x) for x in item_degree])
 
         # shape: [total_samples(num_row), seq_len_user, seq_len_item]
-        item_rating = dataframe['item_rating'].values
-        item_rating = np.array([np.array(x) for x in item_rating])
+        rating_matrix = dataframe['item_rating'].values
+        rating_matrix = np.array([np.array(x) for x in rating_matrix])
 
         # shape: [total_samples(num_row), seq_len_user, seq_len_user]
         spd_matrix = dataframe['spd_matrix'].values
         spd_matrix = np.array([np.array(x) for x in spd_matrix])
 
-        self.user_sequences = torch.LongTensor(user_seq)
-        self.user_degree = torch.LongTensor(user_deg)
-        self.item_sequences = torch.LongTensor(item_seq)
-        self.item_degree = torch.LongTensor(item_deg)
-        self.rating_matrix = torch.LongTensor(item_rating)
+        self.user_sequences = torch.LongTensor(user_sequences)
+        self.user_degree = torch.LongTensor(user_degree)
+        self.item_sequences = torch.LongTensor(item_sequences)
+        self.item_degree = torch.LongTensor(item_degree)
+        self.rating_matrix = torch.LongTensor(rating_matrix)
         self.spd_matrix = torch.LongTensor(spd_matrix)
     
     def __len__(self):
