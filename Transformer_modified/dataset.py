@@ -12,7 +12,7 @@ class MyDataset(Dataset):
         __getitem__():  data indexing (e.g. dataset[0])
         __len__():      length of dataset (e.g. len(dataset))
     """
-    def __init__(self, dataset:str, split:str, seed:int, item_seq_len:int):
+    def __init__(self, dataset:str, split:str, seed:int, item_seq_len:int=250):
         """
         Args:
             dataset: raw dataset name (ciao // epinions)
@@ -22,22 +22,9 @@ class MyDataset(Dataset):
         """
         self.data_path = os.getcwd() + '/dataset/' + dataset
 
-
-        #################### FIXME: user 100명에 대해서 test 
-        # columns: user_id, user_sequences, user_degree, item_sequences, item_degree, item_rating, spd_matrix
-        # with open(self.data_path + '/' + f'sequence_data_num_user_100_itemseq_250_{split}.pkl', 'rb') as file:
-            # dataframe = pickle.load(file)
-        
-        # 모든 user
-        with open(self.data_path + '/' + f'sequence_data_itemlen_250_{split}.pkl', 'rb') as file:
-            dataframe = pickle.load(file)
-
+        # 전처리 된 .pkl 파일 load
         with open(self.data_path + '/' f'sequence_data_seed_{seed}_itemlen_{item_seq_len}_{split}.pkl', 'rb') as file:
             dataframe = pickle.load(file)
-        ####################
-
-
-
 
         user_sequences = dataframe['user_sequences'].values
         user_sequences = np.array([np.array(x) for x in user_sequences])
@@ -94,8 +81,8 @@ if __name__ == "__main__":
     dataset = 'ciao'
     split = 'train'
 
-    dataset = MyDataset(dataset, split)
-    loader = DataLoader(dataset, batch_size=128, shuffle=True)
+    dataset = MyDataset(dataset, split, seed=62, item_seq_len=250)
+    loader = DataLoader(dataset, batch_size=1, shuffle=True)
     for data in loader:
         print(data['user_seq'].shape)
         print(data['user_degree'].shape)
@@ -103,4 +90,10 @@ if __name__ == "__main__":
         print(data['item_degree'].shape)
         print(data['item_rating'].shape)
         print(data['spd_matrix'].shape)
+        # print(data['user_seq'][0])
+        # print(data['user_degree'][0])
+        # print(data['item_list'][0])
+        # print(data['item_degree'][0])
+        # print(data['item_rating'][0])
+        # print(data['spd_matrix'][0])
         quit()
