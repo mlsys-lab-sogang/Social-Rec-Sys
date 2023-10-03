@@ -68,23 +68,23 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
     trust_file = loadmat(data_path + '/' + 'trustnetwork.mat')
     trust_file = trust_file['trustnetwork'].astype(np.int64)    
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
-    # print("before reset and filter")
-    # quit()
+
     ### data filtering & id re-arrange ###
+    ##### FIXME: 처음에만 reset_and_filter 호출 후 저장 -> 이후엔 re-arrange된 .csv를 불러와서 진행
     # rating_df, trust_df = reset_and_filter_data(rating_df, trust_df)
     rating_df = pd.read_csv(data_path+'/rating.csv', index_col=[], dtype=int)#, names=['user_id', 'product_id', 'rating'])
-    
+    ##### 
     ### data filtering & id re-arrange ###
-    # print("After reset and filter")
-    # quit()
-    # rating_matrix = rating_df.pivot_table(values='rating', index='user_id', columns='product_id').fillna(0).to_numpy()
-    rating_matrix = sparse.lil_matrix((max(rating_df['user_id'].unique())+1, max(rating_df['product_id'].unique())+1), dtype=np.uint16)
+    
+    ##### FIXME: 처음에만 저장 -> 동일한 rating.csv를 생성하는 작업이므로 매번 작업하는것은 X
+    # rating_matrix = sparse.lil_matrix((max(rating_df['user_id'].unique())+1, max(rating_df['product_id'].unique())+1), dtype=np.uint16)
 
-    for index in rating_df.index:
-        rating_matrix[rating_df['user_id'][index],rating_df['product_id'][index]] = rating_df['rating'][index]
-    rating_matrix = rating_matrix.toarray()
+    # for index in rating_df.index:
+    #     rating_matrix[rating_df['user_id'][index], rating_df['product_id'][index]] = rating_df['rating'][index]
+    # rating_matrix = rating_matrix.toarray()
+    # np.save(data_path + '/rating_matrix.npy', rating_matrix)    
+    #####
 
-    np.save(data_path + '/rating_matrix.npy', rating_matrix)    
     ### train test split TODO: Change equation for split later on
     # TODO: make random_state a seed varaiable
     split_rating_df = shuffle(rating_df, random_state=seed)
@@ -93,12 +93,17 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
     rating_valid_set = split_rating_df.iloc[num_test:2 * num_test]
     rating_train_set = split_rating_df.iloc[2 * num_test:]
 
-    rating_df.to_csv(data_path + '/rating.csv', index=False)
-    trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
+
+    ##### FIXME: 이 둘은 초기에 생성한 후에 사용 X -> 매번 id re-arrange를 할 필요가 없으므로 1번 이후엔 주석 처리
+    # rating_df.to_csv(data_path + '/rating.csv', index=False)
+    # trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
+    ##### 
 
     rating_test_set.to_csv(data_path + f'/rating_test_seed_{seed}.csv', index=False)
     rating_valid_set.to_csv(data_path + f'/rating_valid_seed_{seed}.csv', index=False)
     rating_train_set.to_csv(data_path + f'/rating_train_seed_{seed}.csv', index=False)
+
+    print(f"data split finished, seed: {seed}")
 
 def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.DataFrame:
     """
@@ -149,7 +154,7 @@ def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.D
     # print("after rating")
     trust_df = trust_df.replace({'user_id_1': mapping_table_user, 'user_id_2': mapping_table_user})
     # print("after repl")
-    return rating_df, trust_df, 
+    return rating_df, trust_df
 
 def generate_social_dataset(data_path:str, save_flag:bool = False, seed:int = 42, split:str='train'):
     """
