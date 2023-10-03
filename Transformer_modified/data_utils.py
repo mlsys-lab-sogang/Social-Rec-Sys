@@ -96,9 +96,9 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
     rating_df.to_csv(data_path + '/rating.csv', index=False)
     trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
 
-    rating_test_set.to_csv(data_path + '/rating_test.csv', index=False)
-    rating_valid_set.to_csv(data_path + '/rating_valid.csv', index=False)
-    rating_train_set.to_csv(data_path + '/rating_train.csv', index=False)
+    rating_test_set.to_csv(data_path + f'/rating_test_seed_{seed}.csv', index=False)
+    rating_valid_set.to_csv(data_path + f'/rating_valid_seed_{seed}.csv', index=False)
+    rating_train_set.to_csv(data_path + f'/rating_train_seed_{seed}.csv', index=False)
 
 def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.DataFrame:
     """
@@ -151,23 +151,24 @@ def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.D
     # print("after repl")
     return rating_df, trust_df, 
 
-def generate_social_dataset(data_path:str, save_flag:bool = False, split:str='train'):
+def generate_social_dataset(data_path:str, save_flag:bool = False, seed:int = 42, split:str='train'):
     """
     Generate social graph from train/test/validation dataset
 
     Args:
         data_path: path to dataset
         rating_file: path to rating file
+        seed: random seed, used in dataset split
     """
-    rating_dataframe = pd.read_csv(f'{data_path}/rating_{split}.csv' , index_col=[])
+    rating_dataframe = pd.read_csv(f'{data_path}/rating_{split}_seed_{seed}.csv' , index_col=[])
     users = set(pd.unique(rating_dataframe['user_id']))
     trust_dataframe = pd.read_csv(data_path + '/trustnetwork.csv', index_col=[])
     social_graph = trust_dataframe[(trust_dataframe['user_id_1'].isin(users)) & (trust_dataframe['user_id_2'].isin(users))]
     if save_flag:
-        social_graph.to_csv(data_path + f'/trustnetwork_{split}.csv')
+        social_graph.to_csv(data_path + f'/trustnetwork_{split}_seed_{seed}.csv')
     return social_graph
 
-def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame:
+def generate_user_degree_table(data_path:str, split:str='train', seed:int=42) -> pd.DataFrame:
     """
     Generate & return degree table from social graph(trustnetwork).
     """
@@ -180,7 +181,7 @@ def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame
     # user-user network
         # Ciao: 7317 users
         # Epinions: 18098 users
-    trust_file = data_path + f'/trustnetwork_{split}.csv'
+    trust_file = data_path + f'/trustnetwork_{split}_seed_{seed}.csv'
     # trust_file = data_path + f'/trustnetwork.csv'
     dataframe = pd.read_csv(trust_file, index_col=[])
 
@@ -191,13 +192,13 @@ def generate_user_degree_table(data_path:str, split:str='train') -> pd.DataFrame
 
     degree_df.sort_values(by='user_id', ascending=True, inplace=True)
 
-    degree_df.to_csv(data_path + f'/degree_table_social_{split}.csv', index=False)
+    degree_df.to_csv(data_path + f'/degree_table_social_{split}_seed_{seed}.csv', index=False)
     # degree_df.to_csv(data_path + f'/degree_table_social.csv', index=False)
 
     return degree_df
 
 
-def generate_item_degree_table(data_path:str, split:str='train') -> pd.DataFrame:
+def generate_item_degree_table(data_path:str, split:str='train', seed:int=42) -> pd.DataFrame:
     """
     Generate & return degree table from user-item graph(rating matrix).
     """
@@ -209,7 +210,7 @@ def generate_item_degree_table(data_path:str, split:str='train') -> pd.DataFrame
     
     # user-item network
         # Ciao: 7375 user // 105114 items ==> 7317 user // 104975 items (after filtered)
-    rating_file = data_path + f'/rating_{split}.csv'
+    rating_file = data_path + f'/rating_{split}_seed_{seed}.csv'
     # rating_file = data_path + f'/rating.csv'
     dataframe = pd.read_csv(rating_file, index_col=[])
 
@@ -221,28 +222,29 @@ def generate_item_degree_table(data_path:str, split:str='train') -> pd.DataFrame
     degree_df.columns = ['product_id', 'degree']
     # degree_df.columns = ['user_id', 'degree']
 
-    degree_df.to_csv(data_path + f'/degree_table_item_{split}.csv', index=False)
+    degree_df.to_csv(data_path + f'/degree_table_item_{split}_seed_{seed}.csv', index=False)
     # degree_df.to_csv(data_path + f'/degree_table_item.csv', index=False)
 
     return degree_df
 
 
-def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False, split:str='train') -> pd.DataFrame:
+def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False, split:str='train', seed:int=42) -> pd.DataFrame:
     """
     Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
 
     Args:
         data_path: path to dataset
         item_length: number of interacted items to fetch
+        seed: random seed, used in dataset split
     """
     
     if split=='all':
         rating_file = data_path + '/rating.csv'
     else:
-        rating_file = data_path + f'/rating_{split}.csv'
+        rating_file = data_path + f'/rating_{split}_seed_{seed}.csv'
         
     dataframe = pd.read_csv(rating_file, index_col=[])
-    degree_table = generate_item_degree_table(data_path=data_path, split=split)
+    degree_table = generate_item_degree_table(data_path=data_path, split=split, seed=seed)
     degree_table = dict(zip(degree_table['product_id'], degree_table['degree']))    # for id mapping.
 
     if all==True:
@@ -256,7 +258,7 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
         user_item_dataframe.index = user_item_dataframe.index + 1
         user_item_dataframe.sort_index(inplace=True)
         # user_item_dataframe.to_csv(data_path + '/user_item_interaction.csv', index=False)
-        user_item_dataframe.to_csv(data_path + f'/user_item_interaction_{split}.csv', index=False)
+        user_item_dataframe.to_csv(data_path + f'/user_item_interaction_{split}_seed_{seed}.csv', index=False)
 
         return user_item_dataframe
     
@@ -287,7 +289,7 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
     user_item_dataframe.index = user_item_dataframe.index + 1
     user_item_dataframe.sort_index(inplace=True)
     
-    user_item_dataframe.to_csv(data_path + f'/user_item_interaction_item_length_{item_length}.csv', index=False)
+    user_item_dataframe.to_csv(data_path + f'/user_item_interaction_item_length_{item_length}_seed_{seed}.csv', index=False)
 
     return user_item_dataframe
 
@@ -322,7 +324,7 @@ def generate_interacted_users_table(data_path:str, item_length=4, split:str='tra
 
 
 
-def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, seed=False, split:str='train') -> list:
+def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, data_split_seed=42, seed=False, split:str='train') -> list:
     """
     Generate random walk sequence from social graph(trustnetwork).
     Return:
@@ -338,13 +340,14 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
         walk_length: length of random walk
         save_flag: save result locally (default=False)
         all_node: get all node's random walk sequence (default=False)
+        data_split_seed: random seed, used in dataset split
         seed: random seed, True or False (default=False)
     """
-    trust_file = data_path + f'/trustnetwork_{split}.csv'
+    trust_file = data_path + f'/trustnetwork_{split}_seed_{data_split_seed}.csv'
     dataframe = pd.read_csv(trust_file, index_col=[])
 
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
-    degree_table = generate_user_degree_table(data_path=data_path, split=split)
+    degree_table = generate_user_degree_table(data_path=data_path, split=split, seed=data_split_seed)
 
     all_path_list = []
 
@@ -400,7 +403,7 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
 
     if save_flag:
         # save result to .csv
-        path = data_path + '/' + f"social_user_{num_nodes}_rw_length_{walk_length}_fixed_seed_{seed}_split_{split}.csv"
+        path = data_path + '/' + f"social_user_{num_nodes}_rw_length_{walk_length}_fixed_seed_{seed}_split_{split}_seed_{data_split_seed}.csv"
 
         keys, walks, degrees = [], [], []
         for paths in all_path_list:
@@ -466,6 +469,7 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
     Prepare data to fed into Dataset class.
 
     data_path: path to dataset (/dataset/{ciao,epinions}/)
+    seed: random seed, used in dataset split
     split: data split type (train/valid/test)
     item_seq_len: pre-defined interacted item sequence length
 
@@ -496,11 +500,11 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
     ## FIXME: 작성한 함수를 호출하도록 추후 수정
     files = os.listdir(data_path)
     for file_name in files:
-        if 'social' in file_name and f'_split_{split}.csv' in file_name:
+        if 'social' in file_name and f'_split_{split}_seed_{seed}.csv' in file_name:
             user_path = file_name
-    item_path = f'user_item_interaction_{split}.csv'
+    item_path = f'user_item_interaction_{split}_seed_{seed}.csv'
     spd_path = 'shortest_path_result.npy'
-    item_rating_path = f'rating_{split}.csv'
+    item_rating_path = f'rating_{split}_seed_{seed}.csv'
 
     # Load dataset & convert data type
     user_df = pd.read_csv(data_path + '/' + user_path, index_col=[])
@@ -518,12 +522,6 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
     # Load rating table => 마찬가지로 각 sequence마다 [seq_len_user, seq_len_item] 크기의 rating matrix를 생성하도록.
     # rating_table = pd.read_csv(data_path + '/' + item_rating_path, index_col=[])
     rating_matrix = np.load(data_path + '/rating_matrix.npy')#pd.DataFrame(np.load(data_path + '/rating_matrix.npy'))
-    # print(len(rating_matrix))
-    # print(len(rating_matrix[0]))
-    # print(rating_matrix)
-    # quit()
-    # print(rating_matrix)
-    # quit()
 
     total_df = pd.DataFrame(columns=['user_id', 'user_sequences', 'user_degree', 'item_sequences', 'item_degree', 'item_rating', 'spd_matrix'])
     for _, data in tqdm(user_df.iterrows(), total=user_df.shape[0]):
@@ -586,13 +584,6 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
                     #     continue
                     small_rating_matrix[i][j] = matrix_rating#[0]
             
-            # total_df.loc[len(total_df)] = [torch.LongTensor(current_user), 
-            #                                torch.LongTensor(current_sequence), 
-            #                                torch.LongTensor(current_degree), 
-            #                                torch.LongTensor(item_list), 
-            #                                torch.LongTensor(degree_list), 
-            #                                rating_matrix.to(torch.long), 
-            #                                spd_matrix.to(torch.long)]
             total_df.loc[len(total_df)] = [current_user, 
                                             current_sequence, 
                                             current_degree, 
@@ -600,22 +591,15 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
                                             degree_list, 
                                             small_rating_matrix.numpy(),
                                             spd_matrix.numpy()]
-    # print(total_df.head())
-    # quit()
+
     ########################### FIXME: 초안모델 디버깅용으로 user_id=100 까지만 기록. ###########################
-    ########################### FIXME: 그리고 전체 user_id 쓸때는 파일 이름 변경.    ###########################
         # if current_user == 100:
         #     break
-    
-    ## to_csv는 string으로 저장해버려서 array 중간이 ... 으로 저장됨.
-    ## to_parquet, to_feather는 type이 다른 컬럼이 존재할 경우 error.
-    ## pickle 저장이 가장 나을듯.
-    # total_df.to_csv(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.csv", index=False)
-    # total_df.to_parquet(data_path + f"/sequence_data_itemseq_{item_seq_len}_{split}.parquet", engine='pyarrow',compression='gzip', index=False)
-    # with open(data_path + f"/sequence_data_num_user_100_itemseq_{item_seq_len}_{split}.pkl", "wb") as file:
+
     with open(data_path + f"/sequence_data_seed_{seed}_itemlen_{item_seq_len}_{split}.pkl", "wb") as file:
         pickle.dump(total_df, file)
-    ######################################################################################################
+
+    ##########################################################################################################
 
 
 if __name__ == "__main__":
