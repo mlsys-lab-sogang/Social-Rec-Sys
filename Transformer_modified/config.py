@@ -11,15 +11,15 @@ ciao={
             "max_degree_user": 804,
             "num_item": 105114,
             "max_degree_item": 915,
-            "d_model": 64,          # MHA dim (Linear modules in Attention Network) & Embedding dim 
-            "d_ffn": 32,            # FFN dim
-            "num_heads": 2,
+            "d_model": 128,          # MHA dim (Linear modules in Attention Network) & Embedding dim 
+            "d_ffn": 512,            # FFN dim
+            "num_heads": 4,
             "dropout": 0.2,         # Inside FFN, decoder_layer & encoder_layer (applied after linear & attention)
-            "num_layers": 2
+            "num_layers_enc": 2,
+            "num_layers_dec": 2
          },
-         ## FIXME: fixed batch_size & num_epochs
          "training":{
-            "batch_size":64,        # total_train_step: 835 (1 epoch 당 `len(train_dataset) / batch_size`)
+            "batch_size":128,        # total_train_step: 835 (1 epoch 당 `len(train_dataset) / batch_size`)
             "optimizer":"adamw",
             "learning_rate":0.001,
             "warmup":80, 
