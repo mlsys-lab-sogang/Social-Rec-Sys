@@ -5,7 +5,7 @@ from models.encoder import Encoder
 from models.decoder import Decoder
 
 class Transformer(nn.Module):
-    def __init__(self, num_user, max_degree_user, num_item, max_degree_item, d_model, d_ffn, num_heads, dropout, num_layers):
+    def __init__(self, num_user, max_degree_user, num_item, max_degree_item, d_model, d_ffn, num_heads, dropout, num_layers_enc, num_layers_dec):
         super(Transformer, self).__init__()
         
         self.encoder = Encoder(
@@ -15,7 +15,7 @@ class Transformer(nn.Module):
             d_ffn=d_ffn,
             num_heads=num_heads,
             dropout=dropout,
-            num_layers=num_layers
+            num_layers=num_layers_enc
         )
 
         self.decoder = Decoder(
@@ -25,7 +25,7 @@ class Transformer(nn.Module):
             d_ffn=d_ffn,
             num_heads=num_heads,
             dropout=dropout,
-            num_layers=num_layers
+            num_layers=num_layers_dec
         )
     
     def forward(self, batched_data):

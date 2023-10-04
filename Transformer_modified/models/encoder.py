@@ -9,7 +9,7 @@ class Encoder(nn.Module):
     """
     Encoder for modeling user representation (in social graph)
     """
-    def __init__(self, max_degree, num_user, d_model, d_ffn, num_heads, dropout, num_layers):
+    def __init__(self, max_degree, num_user, d_model, d_ffn, num_heads, dropout, num_layers_enc):
         """
         Args:
             data_path: path to dataset (ciao or epinions)
@@ -39,7 +39,7 @@ class Encoder(nn.Module):
                 d_ffn = d_ffn,
                 num_heads = num_heads,
                 dropout = dropout
-            ) for _ in range(num_layers)]
+            ) for _ in range(num_layers_enc)]
         )
 
         self.spatial_pos_bias = SpatialEncoder(
