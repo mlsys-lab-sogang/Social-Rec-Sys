@@ -132,7 +132,7 @@ def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.D
     # Remove users not exists in social data
         # Ciao: 7375 user (user-item) ==> 7317 user (social)
         # Epinions: 22164 user (user-item) ==> 18098 user (social)
-    rating_df = rating_df[~rating_df['user_id'].isin(non_users.tolist())]
+    rating_df = rating_df[~rating_df['user_id'].isin(non_users.tolist())].copy()
 
     # Generate user id mapping table
     mapping_table_user = {}
@@ -151,10 +151,15 @@ def reset_and_filter_data(rating_df:pd.DataFrame, trust_df:pd.DataFrame) -> pd.D
     # Replace user id & item id, using id mapping table.
     # print(rating_df.head())
     # print(mapping_table_item)
-    rating_df = rating_df.replace({'user_id': mapping_table_user, 'product_id':mapping_table_item})
+    # rating_df = rating_df.replace({'user_id': mapping_table_user, 'product_id':mapping_table_item})
     # print("after rating")
-    trust_df = trust_df.replace({'user_id_1': mapping_table_user, 'user_id_2': mapping_table_user})
+    # trust_df = trust_df.replace({'user_id_1': mapping_table_user, 'user_id_2': mapping_table_user})
     # print("after repl")
+
+    rating_df['user_id']= rating_df['user_id'].map(mapping_table_user)
+    rating_df['product_id'] = rating_df['product_id'].map(mapping_table_item)
+    trust_df['user_id_1']= trust_df['user_id_1'].map(mapping_table_user)
+    trust_df['user_id_2'] = trust_df['user_id_2'].map(mapping_table_user)
     return rating_df, trust_df
 
 def generate_social_dataset(data_path:str, save_flag:bool = False, seed:int = 42, split:str='train'):
@@ -350,8 +355,7 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
         seed: random seed, True or False (default=False)
     """
     trust_file = data_path + f'/trustnetwork_{split}_seed_{data_split_seed}.csv'
-    dataframe = pd.read_csv(trust_file, index_col=[])
-
+    dataframe = pd.read_csv(trust_file, index_col=0)
     social_graph = nx.from_pandas_edgelist(dataframe, source='user_id_1', target='user_id_2')
     degree_table = generate_user_degree_table(data_path=data_path, split=split, seed=data_split_seed)
 
@@ -584,6 +588,7 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
                     matrix_item = item_list[j]
                     # print(rating_matrix)
                     # print(matrix_user, matrix_item)
+                    # quit()
                     # matrix_rating = rating_table.loc[(rating_table['user_id'] == matrix_user) & (rating_table['product_id'] == matrix_item)]['rating'].values
                     matrix_rating = rating_matrix[matrix_user][matrix_item]
                     # if len(matrix_rating) == 0:
@@ -611,7 +616,7 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
 if __name__ == "__main__":
     ##### For checking & debugging (will remove later)
 
-    data_path = os.getcwd() + '/dataset/' + 'epinions'
+    data_path = os.getcwd() + '/dataset/' + 'ciao'
     # generate_input_sequence_data(data_path=data_path, split='train', item_seq_len=250)
     # user_sequences, user_degree, item_sequences, item_rating, item_degree = generate_sequence_data(data_path=data_path, split='train')
     # print(user_sequences.shape)
@@ -620,8 +625,8 @@ if __name__ == "__main__":
     # data_path = os.getcwd() + '/dataset/' + 'ciao' 
     # rating_file = data_path + '/rating_test.csv'
     # generate_social_dataset(data_path, save_flag=True, split='train')
-    # mat_to_csv(data_path)
-    generate_input_sequence_data(data_path, seed=42)
+    mat_to_csv(data_path)
+    # generate_input_sequence_data(data_path, seed=42)
     quit()
     # print(generate_interacted_items_table(data_path, all=True))
     # print(generate_sequence_data('ciao')[0][0])
