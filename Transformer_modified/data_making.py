@@ -14,6 +14,7 @@ import data_utils as utils
 def get_args():
     parser = argparse.ArgumentParser(description='Data preparation(preprocess) for Transformer input')
     parser.add_argument("--dataset", type=str, default="ciao", help="ciao // epinions")
+    parser.add_argument("--first", type=bool, default=False, help="first preprocess to make filtered .csv files")
     parser.add_argument("--seed", type=int, default=42, help="random seed, used in dataset split")
     parser.add_argument("--test_ratio", type=float, default=0.1, help="percentage of valid/test dataset")
     parser.add_argument("--random_walk_len", type=int, default=20, help="random walk seqeunce length (encoder's input length)")
@@ -28,8 +29,13 @@ def main():
 
     data_path = os.getcwd() + '/dataset/' + args.dataset
 
-    ############# .mat 파일 전처리
-    utils.mat_to_csv(data_path, test=args.test_ratio, seed=args.seed)
+    ############# .mat 파일 전처리 (처음 1번만 실행)
+    if args.first:
+        utils.mat_to_csv(data_path)
+    #############
+
+    ############# train/valid/test 생성
+    utils.shuffle_and_split_dataset(data_path, test=args.test_ratio, seed=args.seed)
     #############
 
     ############# random walk sequence를 생성하기 위한 전처리
