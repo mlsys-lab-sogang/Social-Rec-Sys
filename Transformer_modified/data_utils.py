@@ -29,8 +29,7 @@ from scipy import sparse
 
 # data_path = os.getcwd() + '/dataset/' + DATASET
 
-
-def mat_to_csv(data_path:str, test=0.1, seed=42):
+def mat_to_csv(data_path:str):
     """
     Convert .mat file into .csv file for using pandas.
         Ciao: rating.mat, trustnetwork.mat
@@ -38,16 +37,9 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
     
     Args:
         data_path: Path to .mat file
-        test: percentage of test & valid dataset (default: 10%)
-        seed: random seed (default=42)
     """
     dataset_name = data_path.split('/')[-1]
 
-    # processed file check
-    # if ('rating.csv' or 'trustnetwork.csv') in os.listdir(data_path):
-    #     print("Processed files already exists...")
-    #     return 0
-    
     # load .mat file & convert to dataframe
     if dataset_name == 'ciao':
         rating_file = loadmat(data_path + '/' + 'rating.mat')
@@ -56,7 +48,6 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
 
         # drop unused columns (TODO: Maybe used later)
         rating_df.drop(['category_id', 'helpfulness'], axis=1, inplace=True)
-    
     elif dataset_name == 'epinions':
         rating_file = loadmat(data_path + '/' + 'rating_with_timestamp.mat')
         rating_file = rating_file['rating_with_timestamp'].astype(np.int64)
@@ -64,40 +55,50 @@ def mat_to_csv(data_path:str, test=0.1, seed=42):
 
         # drop unused columns (TODO: Maybe used later)
         rating_df.drop(['category_id', 'helpfulness', 'timestamp'], axis=1, inplace=True)
-
+    
     trust_file = loadmat(data_path + '/' + 'trustnetwork.mat')
     trust_file = trust_file['trustnetwork'].astype(np.int64)    
     trust_df = pd.DataFrame(trust_file, columns=['user_id_1', 'user_id_2'])
 
-    ### data filtering & id re-arrange ###
-    ##### FIXME: 처음에만 reset_and_filter 호출 후 저장 -> 이후엔 re-arrange된 .csv를 불러와서 진행
-    # rating_df, trust_df = reset_and_filter_data(rating_df, trust_df)
-    rating_df = pd.read_csv(data_path+'/rating.csv', index_col=[], dtype=int)#, names=['user_id', 'product_id', 'rating'])
-    ##### 
-    ### data filtering & id re-arrange ###
+    ### data filtering & id-rearrange ###
+    rating_df, trust_df = reset_and_filter_data(rating_df, trust_df)
+    ### data filtering & id-rearrange ###
+
+    # 전체 user-item rating 정보를 담은 rating matrix 생성
+    rating_matrix = sparse.lil_matrix((max(rating_df['user_id'].unique())+1, max(rating_df['product_id'].unique())+1), dtype=np.uint16)
+
+    for index in rating_df.index:
+        rating_matrix[rating_df['user_id'][index], rating_df['product_id'][index]] = rating_df['rating'][index]
+    rating_matrix = rating_matrix.toarray()
+    np.save(data_path + '/rating_matrix.npy', rating_matrix)
+
+
+    # 저장되는 .csv 파일은 user filter & id re-arrange가 완료된 .csv 파일
+    # 따라서 이 함수가 한번 실행된 이후로는 사용 X.
+    rating_df.to_csv(data_path + '/rating.csv', index=False)
+    trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
+
+    print(".mat file converting finished...")
+
+def shuffle_and_split_dataset(data_path:str, test=0.1, seed=42):
+    """
+    Split rating.csv file into train/valid/test.
     
-    ##### FIXME: 처음에만 저장 -> 동일한 rating.csv를 생성하는 작업이므로 매번 작업하는것은 X
-    # rating_matrix = sparse.lil_matrix((max(rating_df['user_id'].unique())+1, max(rating_df['product_id'].unique())+1), dtype=np.uint16)
+    Args:
+        data_path: Path to dataset (ciao or epinions)
+        test: percentage of test & valid dataset (default: 10%)
+        seed: random seed (default=42)
+    """
+    rating_df = pd.read_csv(data_path + '/rating.csv', index_col=[])
 
-    # for index in rating_df.index:
-    #     rating_matrix[rating_df['user_id'][index], rating_df['product_id'][index]] = rating_df['rating'][index]
-    # rating_matrix = rating_matrix.toarray()
-    # np.save(data_path + '/rating_matrix.npy', rating_matrix)    
-    #####
-
-    ### train test split TODO: Change equation for split later on
-    # TODO: make random_state a seed varaiable
+    ### train test split TODO: Change equation for split later on    
     split_rating_df = shuffle(rating_df, random_state=seed)
+
     num_test = int(len(split_rating_df) * test)
+    
     rating_test_set = split_rating_df.iloc[:num_test]
     rating_valid_set = split_rating_df.iloc[num_test:2 * num_test]
     rating_train_set = split_rating_df.iloc[2 * num_test:]
-
-
-    ##### FIXME: 이 둘은 초기에 생성한 후에 사용 X -> 매번 id re-arrange를 할 필요가 없으므로 1번 이후엔 주석 처리
-    # rating_df.to_csv(data_path + '/rating.csv', index=False)
-    # trust_df.to_csv(data_path + '/trustnetwork.csv', index=False)
-    ##### 
 
     rating_test_set.to_csv(data_path + f'/rating_test_seed_{seed}.csv', index=False)
     rating_valid_set.to_csv(data_path + f'/rating_valid_seed_{seed}.csv', index=False)
