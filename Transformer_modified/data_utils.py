@@ -474,13 +474,14 @@ def find_next_social_node(graph:nx.Graph(), previous_node, current_node, RETURN_
 
     return selected_node
 
-def generate_input_sequence_data(data_path, seed:int, split:str='train', item_seq_len:int=250):
+def generate_input_sequence_data(data_path, seed:int, split:str='train', random_walk_len:int=20, item_seq_len:int=250):
     """
     Prepare data to fed into Dataset class.
 
     data_path: path to dataset (/dataset/{ciao,epinions}/)
     seed: random seed, used in dataset split
     split: data split type (train/valid/test)
+    random_walk_len: pre-defined random walk sequence's length (used in `generate_social_random_walk_sequence()`)
     item_seq_len: pre-defined interacted item sequence length
 
     FIXME: 현재는 .csv로 저장 중. 추후 return을 한다면 아래와 같이 return을 할 수 있게 수정?
@@ -607,7 +608,7 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', item_se
         # if current_user == 100:
         #     break
 
-    with open(data_path + f"/sequence_data_seed_{seed}_itemlen_{item_seq_len}_{split}.pkl", "wb") as file:
+    with open(data_path + f"/sequence_data_seed_{seed}_walk_{random_walk_len}_itemlen_{item_seq_len}_{split}.pkl", "wb") as file:
         pickle.dump(total_df, file)
 
     ##########################################################################################################
