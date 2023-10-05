@@ -296,12 +296,15 @@ def get_args():
                         help="load ./checkpoints/model_name.model to evaluation")
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--name', type=str, help="checkpoint model name")
+    parser.add_argument('--user_seq_len', type=int, default=20, help="user random walk sequence length")
     parser.add_argument('--item_seq_len', type=int, default=250, help="item list length")
     args = parser.parse_args()
     return args
 
 def main():
     args = get_args()
+
+    print(json.dumps(args.__dict__, indent = 4))
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                         datefmt='%m/%d/%Y %H:%M:%S',
@@ -361,9 +364,9 @@ def main():
     ### data preparation ###
 
     ### FIXME: 전체 데이터에 대해 파일 생성이 오래 걸림 (현재 시퀀스의 rating matrix 생성하는 부분이 문제로 보임)
-    train_ds = MyDataset(dataset=args.dataset, split='train', seed=args.seed, item_seq_len=args.item_seq_len)
-    dev_ds = MyDataset(dataset=args.dataset, split='valid', seed=args.seed, item_seq_len=args.item_seq_len)
-    test_ds = MyDataset(dataset=args.dataset, split='test', seed=args.seed, item_seq_len=args.item_seq_len)
+    train_ds = MyDataset(dataset=args.dataset, split='train', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
+    dev_ds = MyDataset(dataset=args.dataset, split='valid', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
+    test_ds = MyDataset(dataset=args.dataset, split='test', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
 
     ds_iter = {
             "train":DataLoader(train_ds, batch_size = training_config["batch_size"], shuffle=True),
