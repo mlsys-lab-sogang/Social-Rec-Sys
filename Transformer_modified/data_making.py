@@ -63,9 +63,9 @@ def main():
     #############
 
     ############# 모델 입력을 위한 최종 데이터셋 구성
-    utils.generate_input_sequence_data(data_path=data_path, seed=args.seed, split='train', item_seq_len=args.item_seq_len)
-    utils.generate_input_sequence_data(data_path=data_path, seed=args.seed, split='test', item_seq_len=args.item_seq_len)
-    utils.generate_input_sequence_data(data_path=data_path, seed=args.seed, split='valid', item_seq_len=args.item_seq_len)
+    utils.generate_input_sequence_data(data_path=data_path, seed=args.seed, split='train', random_walk_len=args.random_walk_len, item_seq_len=args.item_seq_len)
+    utils.generate_input_sequence_data(data_path=data_path, seed=args.seed, split='test', random_walk_len=args.random_walk_len, item_seq_len=args.item_seq_len)
+    utils.generate_input_sequence_data(data_path=data_path, seed=args.seed, split='valid', random_walk_len=args.random_walk_len, item_seq_len=args.item_seq_len)
     #############
 
 if __name__ == '__main__':

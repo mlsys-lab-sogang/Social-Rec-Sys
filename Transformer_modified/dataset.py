@@ -12,7 +12,7 @@ class MyDataset(Dataset):
         __getitem__():  data indexing (e.g. dataset[0])
         __len__():      length of dataset (e.g. len(dataset))
     """
-    def __init__(self, dataset:str, split:str, seed:int, item_seq_len:int=250):
+    def __init__(self, dataset:str, split:str, seed:int, user_seq_len:int=20, item_seq_len:int=250):
         """
         Args:
             dataset: raw dataset name (ciao // epinions)
@@ -23,7 +23,7 @@ class MyDataset(Dataset):
         self.data_path = os.getcwd() + '/dataset/' + dataset
 
         # 전처리 된 .pkl 파일 load
-        with open(self.data_path + '/' f'sequence_data_seed_{seed}_itemlen_{item_seq_len}_{split}.pkl', 'rb') as file:
+        with open(self.data_path + '/' f'sequence_data_seed_{seed}_walk_{user_seq_len}_itemlen_{item_seq_len}_{split}.pkl', 'rb') as file:
             dataframe = pickle.load(file)
 
         user_sequences = dataframe['user_sequences'].values
