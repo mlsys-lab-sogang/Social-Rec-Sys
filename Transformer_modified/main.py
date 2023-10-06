@@ -304,8 +304,6 @@ def get_args():
 def main():
     args = get_args()
 
-    print(json.dumps(args.__dict__, indent = 4))
-
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                         datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO)
@@ -325,6 +323,8 @@ def main():
 
     log_path = os.path.join(log_dir,'{}.{}.log'.format(args.mode, args.name))
     redirect_stdout(open(log_path, 'w'))
+
+    print(json.dumps(args.__dict__, indent = 4))
 
     print(json.dumps([model_config, training_config], indent = 4))
 
@@ -407,8 +407,7 @@ def main():
     # criterion = nn.MSELoss()
 
     ### TensorBoard writer preparation ###
-    writer = SummaryWriter()
-
+    writer = SummaryWriter(os.path.join(log_dir,f"{args.name}.tensorboard"))
     ### train ###
     if args.mode == 'train':
         train(model, optimizer, lr_scheduler, ds_iter, training_config, writer)
