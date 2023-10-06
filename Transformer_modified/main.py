@@ -369,9 +369,9 @@ def main():
     test_ds = MyDataset(dataset=args.dataset, split='test', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
 
     ds_iter = {
-            "train":DataLoader(train_ds, batch_size = training_config["batch_size"], shuffle=True),
-            "dev":DataLoader(dev_ds, batch_size = training_config["batch_size"], shuffle=True),
-            "test":DataLoader(test_ds, batch_size = training_config["batch_size"], shuffle=False)
+            "train":DataLoader(train_ds, batch_size = training_config["batch_size"], shuffle=True, num_workers=4),
+            "dev":DataLoader(dev_ds, batch_size = training_config["batch_size"], shuffle=True, num_workers=4),
+            "test":DataLoader(test_ds, batch_size = training_config["batch_size"], shuffle=False, num_workers=4)
     }
 
     ### training preparation ###
