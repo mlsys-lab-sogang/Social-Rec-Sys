@@ -40,7 +40,8 @@ class Decoder(nn.Module):
                 d_ffn = d_ffn,
                 num_heads = num_heads,
                 dropout = dropout,
-                last_layer = False
+                last_layer = False,
+                is_dec_layer = True
             ) for _ in range(num_layers)]
         )
 
@@ -52,7 +53,8 @@ class Decoder(nn.Module):
             d_ffn = d_ffn,
             num_heads = num_heads,
             dropout = dropout,
-            last_layer = True
+            last_layer = True,
+            is_dec_layer = True
         )
     
     def forward(self, batched_data, enc_output, src_mask):
@@ -86,6 +88,7 @@ class Decoder(nn.Module):
             # [batch_size, seq_length_user, seq_length_item, num_heads]
             # ==> [batch_size, num_heads, seq_length_user, seq_length_item]
         attn_bias = self.relation_bias(batched_data).permute(0, 3, 2, 1)
+        # attn_bias=None
 
         # Decoder layer forward pass (MHA, FFN)
         for layer in self.dec_layers:
