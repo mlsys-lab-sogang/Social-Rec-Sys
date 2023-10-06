@@ -11,7 +11,7 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super(ScaledDotProductAttention, self).__init__()
     
-    def forward(self, Q, K, V, mask=None, attn_bias=None, last_layer_flag=False):
+    def forward(self, Q, K, V, mask=None, attn_bias=None, last_layer_flag=False, is_dec_layer=False):
         # Input is 4-d tensor
             # [batch_size, head, length, d_tensor]
         batch_size, head, length, d_tensor = K.size()
@@ -41,7 +41,11 @@ class ScaledDotProductAttention(nn.Module):
         # TODO: add attention bias before softmax
             # [batch_size, num_head, seq_length, seq_length]
         if attn_bias is not None:
-            score += attn_bias
+            # score += attn_bias
+            if is_dec_layer:
+                score *= attn_bias  # decoder cross-attention 연산 시엔 mul -> 상호작용 하지 않은 item은 제외
+            else:
+                score += attn_bias  # encoder self-attention 연산 시엔 add -> bias term 추가 
 
         ### Decoder 마지막 layer에서 Q * K.T 한 결과를 output으로 출력
         if last_layer_flag:
@@ -73,12 +77,13 @@ class MultiHeadAttention(nn.Module):
     """
     Perform multi-head attention
     """
-    def __init__(self, d_model, num_heads, last_layer_flag=False):
+    def __init__(self, d_model, num_heads, last_layer_flag=False, is_dec_layer=False):
         super(MultiHeadAttention, self).__init__()
 
         self.num_heads = num_heads
         self.attention = ScaledDotProductAttention()
         self.last_layer_flag = last_layer_flag
+        self.is_dec_layer = is_dec_layer
 
         # Input projection
         self.W_Q = nn.Linear(d_model, d_model)
@@ -88,6 +93,7 @@ class MultiHeadAttention(nn.Module):
         self.W_concat = nn.Linear(d_model, d_model)
 
     def forward(self, Q, K, V, mask=None, attn_bias=None):
+        # print("Am I in Decoder???????", self.is_dec_layer)
         # 1. Dot produt with weight matrices
             # [batch_size, seq_length, d_model]
         Q, K, V = self.W_Q(Q), self.W_K(K), self.W_V(V)
@@ -106,10 +112,10 @@ class MultiHeadAttention(nn.Module):
         if not self.last_layer_flag:
             # 3. Perform scaled-dot product attention
             # out, attn = self.attention(Q, K, V, mask, attn_bias)
-            out = self.attention(Q, K, V, mask, attn_bias)
+            out = self.attention(Q, K, V, mask, attn_bias, self.last_layer_flag, self.is_dec_layer)
         else:
             # print(f"        Last Layer shapes : Q ({Q.shape})   K ({K.shape})   V ({V.shape})")
-            out = self.attention(Q, K, V, mask, attn_bias, self.last_layer_flag)
+            out = self.attention(Q, K, V, mask, attn_bias, self.last_layer_flag, self.is_dec_layer)
             return out
         #######
 
