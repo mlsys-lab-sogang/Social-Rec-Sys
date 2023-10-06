@@ -9,19 +9,20 @@ class DecoderLayer(nn.Module):
         fixed-length item sequences \n
         This items are interacted items of users in encoder's input random walk sequence.
     """
-    def __init__(self, d_model, d_ffn, num_heads, dropout=0.1, last_layer:bool=False):
+    def __init__(self, d_model, d_ffn, num_heads, dropout=0.1, last_layer:bool=False, is_dec_layer:bool=True):
         super(DecoderLayer, self).__init__()
 
         self.last_layer_flag = last_layer
+        self.dec_layer = is_dec_layer
 
         # Self attention
         self.norm1 = nn.LayerNorm(d_model)
-        self.attention = MultiHeadAttention(d_model=d_model, num_heads=num_heads)
+        self.attention = MultiHeadAttention(d_model=d_model, num_heads=num_heads, is_dec_layer=self.dec_layer)
         self.dropout1 = nn.Dropout(p=dropout)
 
         # Multi-head attntion
         self.norm2 = nn.LayerNorm(d_model)
-        self.cross_attention = MultiHeadAttention(d_model=d_model, num_heads=num_heads)
+        self.cross_attention = MultiHeadAttention(d_model=d_model, num_heads=num_heads, is_dec_layer=self.dec_layer)
         self.dropout2 = nn.Dropout(p=dropout)
 
         if not self.last_layer_flag:
@@ -35,7 +36,7 @@ class DecoderLayer(nn.Module):
                 # [batch_size, seq_len_user, seq_len_item]
                 # encoder의 입력으로 들어온 user들에 대해, decoder에 들어온 item들에 대한 예측된 평점을 출력
             # self.linear = nn.Linear(d_model, 1)
-            self.last_attn = MultiHeadAttention(d_model=d_model, num_heads=num_heads, last_layer_flag=True)
+            self.last_attn = MultiHeadAttention(d_model=d_model, num_heads=num_heads, last_layer_flag=True, is_dec_layer=self.dec_layer)
 
     def forward(self, x, enc_output, trg_mask, src_mask, attn_bias):
         # print("//////// In Decoder Layer ////////")
