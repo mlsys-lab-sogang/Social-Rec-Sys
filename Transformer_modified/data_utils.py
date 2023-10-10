@@ -304,7 +304,7 @@ def generate_interacted_items_table(data_path:str, item_length=4, all:bool=False
 
     return user_item_dataframe
 
-def generate_interacted_users_table(data_path:str, item_length=4, split:str='train') -> pd.DataFrame:
+def generate_interacted_users_table(data_path:str, item_length=4, split:str='train', seed:int=42) -> pd.DataFrame:
     """
     Generate & return user's interacted items & ratings table from user-item graph(rating matrix)
 
@@ -316,7 +316,7 @@ def generate_interacted_users_table(data_path:str, item_length=4, split:str='tra
     if split=='all':
         rating_file = data_path + '/rating.csv'
     else:
-        rating_file = data_path + f'/rating_{split}.csv'
+        rating_file = data_path + f'/rating_{split}_seed_{seed}.csv'
         
     dataframe = pd.read_csv(rating_file, index_col=[])
 
