@@ -55,7 +55,8 @@ def valid(model, ds_iter, epoch, checkpoint_path, global_step, best_dev_rmse, be
     eval_losses = AverageMeter()
     model.eval()
     with torch.no_grad():
-        epoch_iterator = tqdm(ds_iter['dev'],
+        # FIXME: valid를 기준으로 저장 X, test를 기준으로 바로 저장. 
+        epoch_iterator = tqdm(ds_iter['test'],
                               desc="Validating (X / X Steps) (loss=X.X)",
                               bar_format="{l_bar}{r_bar}",
                               dynamic_ncols=True,
@@ -102,16 +103,7 @@ def valid(model, ds_iter, epoch, checkpoint_path, global_step, best_dev_rmse, be
             best_dev_rmse = total_rmse
             best_dev_mae = total_mae
             torch.save({"model_state_dict":model.state_dict()}, checkpoint_path)
-            print(f'\t best model saved: step = {global_step}, epoch = {epoch},dev RMSE = {total_rmse.item():.6f}, dev MAE = {total_mae.item():.6f}')
-
-    # print("\n[Validation Results]")
-    # # print("Global Steps: %d" % global_step)
-    # print("Epoch: %d" % epoch)
-    # print("Valid Loss: %2.5f" % eval_losses.avg)
-    # print("Valid RMSE: %2.5f" % total_rmse)
-    # print("Valid MAE: %2.5f" % total_mae)
-    # print("time stamp: {}".format((time.time()-init_t)))
-    # print("\n")
+            print(f'\t best model saved: step = {global_step}, epoch = {epoch}, test RMSE = {total_rmse.item():.6f}, test MAE = {total_mae.item():.6f}')
 
     return eval_losses.avg, best_dev_rmse, best_dev_mae, total_rmse, total_mae
 
@@ -179,16 +171,7 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, writer):
             losses.update(loss)
             epoch_iterator.set_description(
                         "Training (%d / %d Steps) (loss=%2.5f)" % (step, len(epoch_iterator), losses.val))
-        # print(f"Epoch {epoch} Finished (Average Loss: {losses.avg:.4f})")
 
-            # Validation step
-            # if (step + 1) % training_config["eval_frequency"] == 0:
-            #     end.record()
-            #     torch.cuda.synchronize()
-            #     total_time += (start.elapsed_time(end))
-            #     best_dev_rmse = valid(model, ds_iter, epoch, training_config, checkpoint_path, step, best_dev_rmse, init_t, criterion)
-            #     model.train()
-            #     start.record()
         # validation
         end.record()
         torch.cuda.synchronize()
@@ -201,11 +184,10 @@ def train(model, optimizer, lr_scheduler, ds_iter, training_config, writer):
         # writer.add_scalar('Loss/Train', losses.avg, epoch)
         # writer.add_scalar('Loss/Valid', valid_loss, epoch)
         writer.add_scalars('Loss', {'Train':losses.avg, 'Valid':valid_loss}, epoch)
-        writer.add_scalar('RMSE/Valid', valid_rmse, epoch)
-        writer.add_scalar('MAE/Valid', valid_mae, epoch)
+        writer.add_scalar('RMSE/Test', valid_rmse, epoch)
+        writer.add_scalar('MAE/Test', valid_mae, epoch)
 
-        print(f"Epoch {epoch:03d}: Train Loss: {losses.avg:.4f} || Valid Loss: {valid_loss:.4f} || epoch RMSE: {valid_rmse:.4f} || epoch MAE: {valid_mae:.4f} || best RMSE: {best_dev_rmse:.4f} || best MAE: {best_dev_mae:.4f}")
-        # logger.info(f"Epoch {epoch:03d}: Train Loss: {losses.avg:.4f} || Valid Loss: {valid_loss:.4f} || epoch RMSE: {valid_rmse:.4f} || epoch MAE: {valid_mae:.4f} || best RMSE: {best_dev_rmse:.4f} || best MAE: {best_dev_mae:.4f}")
+        print(f"Epoch {epoch:03d}: Train Loss: {losses.avg:.4f} || Test Loss: {valid_loss:.4f} || epoch RMSE: {valid_rmse:.4f} || epoch MAE: {valid_mae:.4f} || best RMSE: {best_dev_rmse:.4f} || best MAE: {best_dev_mae:.4f}")
 
     writer.close()
 
@@ -364,13 +346,14 @@ def main():
     ### data preparation ###
 
     ### FIXME: 전체 데이터에 대해 파일 생성이 오래 걸림 (현재 시퀀스의 rating matrix 생성하는 부분이 문제로 보임)
+        ### FIXME: (231012) validation set을 통해 모델이 잘 train 되는것은 확인했으므로, 바로 test를 진행하면서 model을 저장.
     train_ds = MyDataset(dataset=args.dataset, split='train', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
-    dev_ds = MyDataset(dataset=args.dataset, split='valid', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
+    # dev_ds = MyDataset(dataset=args.dataset, split='valid', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
     test_ds = MyDataset(dataset=args.dataset, split='test', seed=args.seed, user_seq_len=args.user_seq_len, item_seq_len=args.item_seq_len)
 
     ds_iter = {
             "train":DataLoader(train_ds, batch_size = training_config["batch_size"], shuffle=True, num_workers=4),
-            "dev":DataLoader(dev_ds, batch_size = training_config["batch_size"], shuffle=True, num_workers=4),
+            # "dev":DataLoader(dev_ds, batch_size = training_config["batch_size"], shuffle=True, num_workers=4),
             "test":DataLoader(test_ds, batch_size = training_config["batch_size"], shuffle=False, num_workers=4)
     }
 
