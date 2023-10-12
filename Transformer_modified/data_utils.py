@@ -89,6 +89,10 @@ def shuffle_and_split_dataset(data_path:str, test=0.1, seed=42):
         test: percentage of test & valid dataset (default: 10%)
         seed: random seed (default=42)
     """
+    if f'rating_train_seed_{seed}.csv' in os.listdir(data_path):
+        print(f"splitted data exists, seed: {seed} ")
+        return 0
+    
     rating_df = pd.read_csv(data_path + '/rating.csv', index_col=[])
 
     ### train test split TODO: Change equation for split later on    
