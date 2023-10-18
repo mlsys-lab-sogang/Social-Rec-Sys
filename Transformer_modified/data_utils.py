@@ -513,10 +513,14 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', random_
         return result_list
 
     ## FIXME: 작성한 함수를 호출하도록 추후 수정
+    ########### FIXME: (231018)
+    # f'_split_{split}_seed_{seed}.csv' 로 filtering 했는데, 이러면 sequence 길이가 10, 20, 30인게 모두 걸림.
+    # 현재 생성되는 rw sequence 등 앞선 전처리 과정은 전부 다르게 생성되고 있음. 동일 수치가 나오는 이유가 여기가 문제인것으로 파악됨.
     files = os.listdir(data_path)
     for file_name in files:
-        if 'social' in file_name and f'_split_{split}_seed_{seed}.csv' in file_name:
+        if 'social' in file_name and f'rw_length_{random_walk_len}_fixed_seed_False_split_{split}_seed_{seed}.csv' in file_name:
             user_path = file_name
+    ###########
     item_path = f'user_item_interaction_{split}_seed_{seed}.csv'
     spd_path = 'shortest_path_result.npy'
     item_rating_path = f'rating_{split}_seed_{seed}.csv'
