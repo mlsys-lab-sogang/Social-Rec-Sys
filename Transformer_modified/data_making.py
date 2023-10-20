@@ -57,9 +57,9 @@ def main():
     #############
 
     ############# random walk sequence 생성
-    utils.generate_social_random_walk_sequence(data_path, walk_length=args.random_walk_len, save_flag=True, all_node=True, seed=False, data_split_seed=args.seed, split='train')
-    utils.generate_social_random_walk_sequence(data_path, walk_length=args.random_walk_len, save_flag=True, all_node=True, seed=False, data_split_seed=args.seed, split='test')
-    utils.generate_social_random_walk_sequence(data_path, walk_length=args.random_walk_len, save_flag=True, all_node=True, seed=False, data_split_seed=args.seed, split='valid')
+    utils.generate_social_random_walk_sequence(data_path, walk_length=args.random_walk_len, save_flag=True, all_node=True, seed=False, data_split_seed=args.seed, split='train', regenerate=True)
+    utils.generate_social_random_walk_sequence(data_path, walk_length=args.random_walk_len, save_flag=True, all_node=True, seed=False, data_split_seed=args.seed, split='test', regenerate=True)
+    utils.generate_social_random_walk_sequence(data_path, walk_length=args.random_walk_len, save_flag=True, all_node=True, seed=False, data_split_seed=args.seed, split='valid', regenerate=True)
     #############
 
     ############# 모델 입력을 위한 최종 데이터셋 구성
