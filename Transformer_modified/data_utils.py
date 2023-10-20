@@ -339,7 +339,7 @@ def generate_interacted_users_table(data_path:str, item_length=4, split:str='tra
 
 
 
-def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag=False, all_node=False, data_split_seed=42, seed=False, split:str='train') -> list:
+def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_length:int=5, save_flag:bool=False, all_node:bool=False, data_split_seed:int=42, seed:bool=False, split:str='train', regenerate:bool=False) -> list:
     """
     Generate random walk sequence from social graph(trustnetwork).
     Return:
@@ -357,6 +357,8 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
         all_node: get all node's random walk sequence (default=False)
         data_split_seed: random seed, used in dataset split
         seed: random seed, True or False (default=False)
+        split: dataset split type (default=train)
+        regenerate: to generate random walk sequence once again (default=False)
     """
     trust_file = data_path + f'/trustnetwork_{split}_seed_{data_split_seed}.csv'
     dataframe = pd.read_csv(trust_file, index_col=0)
@@ -370,6 +372,17 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
     
     if seed:
         np.random.seed(62)
+    
+    # processed file check
+    # 랜덤워크 시퀀스는 이 함수를 호출할 때 마다 무작위로 생성됨.
+    # generate_inpute_sequence_data()는 이 함수에서 생성된 랜덤워크 시퀀스를 사용하므로
+    # 동일한 seed, user length에 item length만 다르다면 랜덤워크 시퀀스를 다시 생성하지 않도록 설정.
+    if regenerate:
+        if f"social_user_{num_nodes}_rw_length_{walk_length}_fixed_seed_{seed}_split_{split}_seed_{data_split_seed}.csv" not in os.listdir(data_path):
+            print("No random walk found, proceed generating...")
+        else:
+            print(f"Generated random walk already exists: user_seq_{walk_length}_split_{split}_seed_{data_split_seed}")
+            return 0
 
     # select target(anchor) nodes randomly. (without replacement)
     anchor_nodes = np.random.choice(social_graph.nodes(), size=num_nodes, replace=False)
