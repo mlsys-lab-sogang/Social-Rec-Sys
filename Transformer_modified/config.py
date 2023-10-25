@@ -43,7 +43,7 @@ epinions={
             "num_user": 18098,
             "max_degree_user": 2026,
             "num_item": 261679,
-            "max_degree_item": 1440,
+            "max_degree_item": 1510,
             # "max_spd_value": 15,    # (from _test16.py) unreachable distance를 `max(num_user) + 1` 가 아닌 실제 SPD값 보다 조금 더 큰 값으로 설정. (epinions의 spd: 1~9)
             "d_model": 64,          # MHA dim (Linear modules in Attention Network) & Embedding dim 
             "d_ffn": 256,            # FFN dim
@@ -55,7 +55,7 @@ epinions={
          "training":{
             "batch_size":128,        # total_train_step: 835 (1 epoch 당 `len(train_dataset) / batch_size`)
             "optimizer":"adamw",
-            "learning_rate":0.001,
+            "learning_rate":0.0001,
             "warmup":80, 
             "lr_decay":"linear",
             "weight_decay":0,
