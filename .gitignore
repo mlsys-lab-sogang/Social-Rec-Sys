@@ -61,6 +61,7 @@ target/
 
 # test files
 _*.py
+_*.sh
 
 # another raw dataset files (.mat -> .csv)
 *.csv
