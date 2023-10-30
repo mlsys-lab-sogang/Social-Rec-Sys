@@ -58,7 +58,7 @@ class SpatialEncoder(nn.Module):
         num_heads: number of heads in multi-head attention
         num_nodes: total number of users in social graph. (before splitting)
     """
-    def __init__(self, num_heads, num_nodes):
+    def __init__(self, num_heads, max_spd_value):
         super(SpatialEncoder, self).__init__()
         
         self.num_heads = num_heads
@@ -66,6 +66,7 @@ class SpatialEncoder(nn.Module):
         # # lookup table은 spatial-pos table에 있는 거리 값을 dense vector representation으로 변환
         #     # 현재 spatial_pos_table에 있는 값중 max값은 unreachable 거리이고, 이는 num_nodes + 1.
         # self.spatial_pos_encoder = nn.Embedding(num_nodes + 1, num_heads, padding_idx=0)
+        # self.spatial_pos_encoder = nn.Embedding(max_spd_value + 1, num_heads, padding_idx=0)
 
     def forward(self, batched_data):
         """
@@ -78,6 +79,7 @@ class SpatialEncoder(nn.Module):
 
         # [batch_size, seq_length, seq_length] ==> [num_heads, batch_size, seq_length, seq_length] ==> [batch_size, seq_length, seq_length, num_heads]
         attn_bias = spd_matrix.repeat(self.num_heads, 1, 1, 1).permute(1, 2, 3, 0)
+        # attn_bias = self.spatial_pos_encoder(spd_matrix)
 
         return attn_bias
 
