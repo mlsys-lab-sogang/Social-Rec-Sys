@@ -320,7 +320,11 @@ def main():
     ### model preparation ###
     model = Transformer(**model_config)
 
-    checkpoint_dir = os.getcwd() + f'/checkpoints/checkpoints_seed_{args.seed}/'
+    # checkpoint_dir = os.getcwd() + f'/checkpoints/{args.dataset}/checkpoints_seed_{args.seed}/'
+    checkpoint_data = os.getcwd() + f'/checkpoints/{args.dataset}/'
+    if not os.path.exists(checkpoint_data):
+        os.mkdir(checkpoint_data)
+    checkpoint_dir = checkpoint_data + f'checkpoints_seed_{args.seed}/'
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
     checkpoint_dir = os.path.join(checkpoint_dir, args.mode)
