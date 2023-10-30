@@ -11,7 +11,7 @@ ciao={
             "max_degree_user": 804,
             "num_item": 104975,     # 105114 -> id re-indexing 하고 나서 count(rating.csv로 확인) -> 104975
             "max_degree_item": 969, # 915 -> id re-indexing 하고 나서 rating.csv로 다시 확인하니 969임. -> 969 뭘 확인한걸까.
-            # "max_spd_value": 15,    # (from _test16.py) unreachable distance를 `max(num_user) + 1` 가 아닌 실제 SPD값 보다 조금 더 큰 값으로 설정. (ciao의 spd: 1 ~ 10)
+            "max_spd_value": 15,    # (from _test16.py) unreachable distance를 `max(num_user) + 1` 가 아닌 실제 SPD값 보다 조금 더 큰 값으로 설정. (ciao의 spd: 1 ~ 10)
             "d_model": 64,          # MHA dim (Linear modules in Attention Network) & Embedding dim 
             "d_ffn": 256,            # FFN dim
             "num_heads": 2,
@@ -44,7 +44,7 @@ epinions={
             "max_degree_user": 2026,
             "num_item": 261679,
             "max_degree_item": 1510,
-            # "max_spd_value": 15,    # (from _test16.py) unreachable distance를 `max(num_user) + 1` 가 아닌 실제 SPD값 보다 조금 더 큰 값으로 설정. (epinions의 spd: 1~9)
+            "max_spd_value": 15,    # (from _test16.py) unreachable distance를 `max(num_user) + 1` 가 아닌 실제 SPD값 보다 조금 더 큰 값으로 설정. (epinions의 spd: 1~9)
             "d_model": 64,          # MHA dim (Linear modules in Attention Network) & Embedding dim 
             "d_ffn": 256,            # FFN dim
             "num_heads": 2,
