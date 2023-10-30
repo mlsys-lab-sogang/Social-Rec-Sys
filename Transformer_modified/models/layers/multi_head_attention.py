@@ -45,7 +45,9 @@ class ScaledDotProductAttention(nn.Module):
             if is_dec_layer:
                 score *= attn_bias  # decoder cross-attention 연산 시엔 mul -> 상호작용 하지 않은 item은 제외
             else:
-                score += attn_bias  # encoder self-attention 연산 시엔 add -> bias term 추가 
+                ### FIXME: 멀리 있는 노드와는 attention을 덜 하도록 -로 수정
+                # score += attn_bias  # encoder self-attention 연산 시엔 add -> bias term 추가
+                score = score - attn_bias
 
         ### Decoder 마지막 layer에서 Q * K.T 한 결과를 output으로 출력
         if last_layer_flag:
