@@ -11,7 +11,8 @@ def floyd_warshall(adjacency_matrix):
     (nrows, ncols) = adjacency_matrix.shape
     assert nrows == ncols
     cdef unsigned int n = nrows
-    cdef unsigned int threshold = nrows + 1    # unreachable nodes distance 
+    # cdef unsigned int threshold = nrows + 1    # unreachable nodes distance
+    cdef unsigned int threshold = 15    # unreachable nodes distance (Ciao max dist: 10, Epinions max dist: 9)
 
     adj_mat_copy = adjacency_matrix.astype(long, order='C', casting='safe', copy=True)
     assert adj_mat_copy.flags['C_CONTIGUOUS']
