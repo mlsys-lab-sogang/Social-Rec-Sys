@@ -410,8 +410,10 @@ def generate_social_random_walk_sequence(data_path:str, num_nodes:int=10, walk_l
             if len(path_dict[nodes]) > 20:
                 continue
         
-        # Pop 1st element of list(since it is anchor node).
-        del path_dict[nodes][0]
+        #### FIXME: pop last element of list
+        # # Pop 1st element of list(since it is anchor node).
+        # del path_dict[nodes][0]
+        del path_dict[nodes][-1]
         
         # # Get each user's degree information from degree table.
         degree_list = []
@@ -532,6 +534,7 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', random_
     files = os.listdir(data_path)
     for file_name in files:
         if 'social' in file_name and f'rw_length_{random_walk_len}_fixed_seed_False_split_{split}_seed_{seed}.csv' in file_name:
+        # if 'social' in file_name and f'rw_length_{random_walk_len}_fixed_seed_True_split_{split}_seed_{seed}.csv' in file_name:
             user_path = file_name
     ###########
     item_path = f'user_item_interaction_{split}_seed_{seed}.csv'
@@ -629,6 +632,7 @@ def generate_input_sequence_data(data_path, seed:int, split:str='train', random_
         # if current_user == 100:
         #     break
 
+    # with open(data_path + f"/sequence_data_seed_{seed}_walk_{random_walk_len}_itemlen_{item_seq_len}_{split}_randomchoice.pkl", "wb") as file:
     with open(data_path + f"/sequence_data_seed_{seed}_walk_{random_walk_len}_itemlen_{item_seq_len}_{split}.pkl", "wb") as file:
         pickle.dump(total_df, file)
 
