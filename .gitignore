@@ -75,3 +75,4 @@ checkpoints/
 *.pkl
 *.npy
 runs/
+plots/
