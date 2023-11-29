@@ -62,6 +62,10 @@ class Encoder(nn.Module):
             # [batch_size, seq_length, seq_length, num_heads] ==> [batch_size, num_heads, seq_length, seq_length]
         attn_bias = self.spatial_pos_bias(batched_data).permute(0, 3, 2, 1)
 
+        ### Ablation study: No attn_bias
+        # attn_bias = None
+        ###
+
         # Encoder layer forward pass (MHA, FFN)
         for layer in self.enc_layers:
             x = layer(x, src_mask, attn_bias)

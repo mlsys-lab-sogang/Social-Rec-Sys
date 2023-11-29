@@ -21,10 +21,12 @@ class SocialNodeEncoder(nn.Module):
             # (id == index + 1)
         self.node_encoder = nn.Embedding(num_nodes + 1, d_model, padding_idx=0)
 
+        ### Ablation study: no degree embedding
         # Degree embedding table -> will be index by input's degree information.
             # table size: [max_degree + 1, embed_dim]
             # (id == index + 1)
         self.degree_encoder = nn.Embedding(max_degree + 1, d_model, padding_idx=0)
+        ###
     
     def forward(self, batched_data):
         """
@@ -43,11 +45,13 @@ class SocialNodeEncoder(nn.Module):
         user_embedding = self.node_encoder(x)
         # print(user_embedding.shape)
 
+        ### Ablation study: no degree embedding
         # Add degree embedding vector to user_id embedding vector
         degree_embedding = self.degree_encoder(degree)
         # print(degree_embedding.shape)
 
         input_embedding = user_embedding + degree_embedding
+        ### Ablation study: no degree embedding
 
         return input_embedding
 
@@ -99,9 +103,11 @@ class ItemNodeEncoder(nn.Module):
             # table size: [num_item_total, embed_dim]
         self.node_encoder = nn.Embedding(num_nodes + 1, d_model, padding_idx=0)
 
+        ### Ablation study: no degree embedding
         # Degree embedding table -> will be index by input's degree information
             # table size: [max_degree, embed_dim]
         self.degree_encoder = nn.Embedding(max_degree + 1, d_model, padding_idx=0)
+        ### 
     
     def forward(self, batched_data):
         """
@@ -118,11 +124,13 @@ class ItemNodeEncoder(nn.Module):
         item_embedding = self.node_encoder(x)
         # print(item_embedding.shape)
 
+        ### Ablation study: no degree embedding
         # Add degree embedding vector to item_id embedding vector
         degree_embedding = self.degree_encoder(degree)
         # print(degree_embedding.shape)
 
         input_embedding = item_embedding + degree_embedding
+        ### Ablation study: no degree embedding
 
         return input_embedding
     
