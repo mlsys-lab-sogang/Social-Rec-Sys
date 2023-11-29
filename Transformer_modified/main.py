@@ -303,12 +303,12 @@ def main():
     if not os.path.exists(log_dir):
         os.mkdir(log_dir)
 
-    log_path = os.path.join(log_dir,'{}.{}.log'.format(args.mode, args.name))
-    redirect_stdout(open(log_path, 'w'))
+    # log_path = os.path.join(log_dir,'{}.{}.log'.format(args.mode, args.name))
+    # redirect_stdout(open(log_path, 'w'))
 
-    print(json.dumps(args.__dict__, indent = 4))
+    # print(json.dumps(args.__dict__, indent = 4))
 
-    print(json.dumps([model_config, training_config], indent = 4))
+    # print(json.dumps([model_config, training_config], indent = 4))
 
     ###  set the random seeds for deterministic results. ####
     SEED = args.seed
@@ -339,9 +339,9 @@ def main():
 
 
     #model = model.cuda()
-    print(model)
-    print(f"parameter_size: {[weight.size() for weight in model.parameters()]}", flush = True)
-    print(f"num_parameter: {np.sum([np.prod(weight.size()) for weight in model.parameters()])}", flush = True)
+    # print(model)
+    # print(f"parameter_size: {[weight.size() for weight in model.parameters()]}", flush = True)
+    # print(f"num_parameter: {np.sum([np.prod(weight.size()) for weight in model.parameters()])}", flush = True)
 
     device_ids = list(range(torch.cuda.device_count()))
     print(f"GPU list: {device_ids}")
@@ -399,6 +399,18 @@ def main():
     if args.mode == 'train':
         train(model, optimizer, lr_scheduler, ds_iter, training_config, writer)
         # train(model, optimizer, ds_iter, training_config, criterion)
+
+    # Since train logging is done by TensorBoard, log only test result.
+    log_path = os.path.join(log_dir,'{}.{}.log'.format(args.mode, args.name))
+    redirect_stdout(open(log_path, 'w'))
+
+    print(json.dumps(args.__dict__, indent = 4))
+
+    print(json.dumps([model_config, training_config], indent = 4))
+
+    print(model)
+    print(f"parameter_size: {[weight.size() for weight in model.parameters()]}", flush = True)
+    print(f"num_parameter: {np.sum([np.prod(weight.size()) for weight in model.parameters()])}", flush = True)
 
     ### eval ###
     if os.path.exists(checkpoint_path) and checkpoint_path != os.getcwd() + '/checkpoints/test.model':
